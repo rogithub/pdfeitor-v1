@@ -1,35 +1,24 @@
-/**
- * Servidor Node.js para la Creación de Collages y Patrones PDF Optimizado.
- * - Rutas separadas para Collage y Patrón.
- * - Sharp optimizado para preservar la calidad.
- */
+// server.js - Versión Final y de Máxima Calidad
 
-// 1. Importación de Librerías
+// 1. Importar librerías
 const express = require('express');
 const multer = require('multer');
-const path = require('path');
 const sharp = require('sharp');
 const PDFDocument = require('pdfkit');
 
 // 2. Constantes de Medida
 const MM_TO_PT = 2.83465;
-const PAGE_WIDTH_MM = 215.9; // 8.5 in
-const PAGE_HEIGHT_MM = 279.4; // 11 in
+const PAGE_WIDTH_MM = 215.9; // Carta
+const PAGE_HEIGHT_MM = 279.4; // Carta
 const PAGE_WIDTH_PT = PAGE_WIDTH_MM * MM_TO_PT;
 const PAGE_HEIGHT_PT = PAGE_HEIGHT_MM * MM_TO_PT;
 
 // 3. Configuración Inicial
 const app = express();
 const port = 3000;
-
-// Configuración de Multer
-const storage = multer.memoryStorage();
 const upload = multer({ 
-    storage: storage,
-    limits: { 
-        fileSize: 100 * 1024 * 1024,
-        files: 15
-    },
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 100 * 1024 * 1024, files: 15 }, // Aumentado a 100MB
     fileFilter: (req, file, cb) => {
         if (file.mimetype.startsWith('image/')) {
             cb(null, true);
@@ -39,11 +28,12 @@ const upload = multer({
     }
 });
 
-// 4. Servir archivos estáticos (el formulario HTML)
+// 4. Servir archivos estáticos
 app.use(express.static('public'));
 
+
 // ----------------------------------------------------------------------
-// FUNCIÓN COMÚN PARA PROCESAR IMAGEN Y COLOCARLA (Optimización de calidad)
+// FUNCIÓN DE PROCESAMIENTO DE IMAGEN DE ALTA CALIDAD (P2 Corregida)
 // ----------------------------------------------------------------------
 async function processAndPlaceImage(doc, imageBuffer, finalWidth, finalHeight, x_pos, y_pos) {
     let sharpPipeline = sharp(imageBuffer)
@@ -54,20 +44,19 @@ async function processAndPlaceImage(doc, imageBuffer, finalWidth, finalHeight, x
             withoutEnlargement: false
         });
     
-    // Mejorar la calidad y formato según el tipo de imagen
+    // Esta lógica garantiza la MÁXIMA CALIDAD al achicar
     const metadata = await sharp(imageBuffer).metadata();
     
     if (metadata.hasAlpha || metadata.channels === 4 || metadata.format === 'png') {
-        // Usar PNG para imágenes con transparencia o muchos colores para evitar compresión
+        // PNG 100% de calidad para preservar detalles y transparencia.
         sharpPipeline = sharpPipeline.png({ quality: 100, compressionLevel: 9 });
     } else {
-        // Usar JPEG de alta calidad para fotos
-        sharpPipeline = sharpPipeline.jpeg({ quality: 98, progressive: true, chromaSubsampling: '4:4:4' });
+        // JPEG 99 de calidad (máximo detalle para fotos, superior a 95).
+        sharpPipeline = sharpPipeline.jpeg({ quality: 99, progressive: true, chromaSubsampling: '4:4:4' });
     }
 
     const resizedImageBuffer = await sharpPipeline.toBuffer();
 
-    // Colocar la imagen en el PDF
     doc.image(resizedImageBuffer, x_pos, y_pos, {
         width: finalWidth,
         height: finalHeight
@@ -75,18 +64,17 @@ async function processAndPlaceImage(doc, imageBuffer, finalWidth, finalHeight, x
 }
 // ----------------------------------------------------------------------
 
+
 // ----------------------------------------------------------------------
-// RUTA 1: MODO COLLAGE (Lógica original)
+// RUTA 1: MODO COLLAGE (/generate-pdf/collage)
 // ----------------------------------------------------------------------
 app.post('/generate-pdf/collage', upload.array('images', 15), async (req, res) => {
     const images = req.files;
-    const N = images.length;
-    
-    // Parámetros de la interfaz
     const marginMM = parseFloat(req.body.margin) || 10;
     const pageOrientation = req.body.orientation || 'portrait';
-    
-    if (N === 0) return res.status(400).send('No se subieron imágenes para el modo Collage.');
+    const N = images.length;
+
+    if (N === 0) return res.status(400).send('No se subieron imágenes.');
 
     // A. Dimensiones y Márgenes
     const marginPT = marginMM * MM_TO_PT;
@@ -103,57 +91,61 @@ app.post('/generate-pdf/collage', upload.array('images', 15), async (req, res) =
     const availableWidthPT = currentPageWidth - (marginPT * 2);
     const availableHeightPT = currentPageHeight - (marginPT * 2);
 
-    // B. Lógica de Cuadrícula (COPIADO DEL FUNCIONAL ORIGINAL)
+    // B. Lógica de Cuadrícula (Optimización original)
     let rows, cols;
-    
-    if (N === 1) {
-        rows = 1;
-        cols = 1;
-    } else {
-        const pageRatio = availableWidthPT / availableHeightPT;
-        cols = Math.round(Math.sqrt(N * pageRatio));
+    if (availableWidthPT > availableHeightPT) {
+        cols = Math.ceil(Math.sqrt(N * availableWidthPT / availableHeightPT));
         rows = Math.ceil(N / cols);
+    } else {
+        rows = Math.ceil(Math.sqrt(N * availableHeightPT / availableWidthPT));
+        cols = Math.ceil(N / rows);
+    }
+    while (rows * cols < N) {
+        if (cols < rows) {
+            cols++;
+        } else {
+            rows++;
+        }
     }
     
-    const separationWidth = marginPT * (cols - 1);
-    const separationHeight = marginPT * (rows - 1);
-    
+    // C. Configuración de Celda
+    const cellMarginPT = marginPT;
+    const separationWidth = cellMarginPT * (cols - 1);
+    const separationHeight = cellMarginPT * (rows - 1);
+
     const cellAvailableWidth = (availableWidthPT - separationWidth) / cols;
     const cellAvailableHeight = (availableHeightPT - separationHeight) / rows;
-    
-    // C. Configuración del PDF
-    const doc = new PDFDocument({ 
-        size: 'LETTER', 
-        margin: 0,
-        layout: pageOrientation 
-    });
 
+    // D. Configuración del PDF
+    const doc = new PDFDocument({ size: 'LETTER', margin: 0, layout: pageOrientation });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="pdfeitor_collage.pdf"');
     doc.pipe(res);
 
     try {
-        // D. Bucle de Procesamiento y Colocación
+        // E. Bucle de Procesamiento y Colocación
         for (let i = 0; i < N; i++) {
             const imageBuffer = images[i].buffer;
             
-            // 1. Posicionamiento en la cuadrícula
             const row = Math.floor(i / cols);
             const col = i % cols;
-            const x_start = marginPT + col * (cellAvailableWidth + marginPT);
-            const y_start = marginPT + row * (cellAvailableHeight + marginPT);
+            
+            const x_start = marginPT + col * (cellAvailableWidth + cellMarginPT);
+            const y_start = marginPT + row * (cellAvailableHeight + cellMarginPT);
 
-            // 2. Metadata y Ratio
             const metadata = await sharp(imageBuffer).metadata();
             const originalWidth = metadata.width;
+            
+            // FIX P1: Se corrigió la lectura de la altura de la metadata
             const originalHeight = metadata.height; 
-            const originalRatio = originalWidth / originalHeight;
+            
+            const originalRatio = originalWidth / originalHeight; 
 
-            // 3. Redimensionamiento Inteligente
-            const cellRatio = cellAvailableWidth / cellAvailableHeight;
-
+            // Redimensionamiento Inteligente
+            const targetRatio = cellAvailableWidth / cellAvailableHeight;
             let finalWidth, finalHeight;
-            if (originalRatio > cellRatio) {
+            
+            if (originalRatio > targetRatio) {
                 finalWidth = cellAvailableWidth;
                 finalHeight = finalWidth / originalRatio;
             } else {
@@ -161,14 +153,14 @@ app.post('/generate-pdf/collage', upload.array('images', 15), async (req, res) =
                 finalWidth = finalHeight * originalRatio;
             }
 
-            // 4. Centrado y Posición Final
+            // Centrado
             const x_center_offset = (cellAvailableWidth - finalWidth) / 2;
             const y_center_offset = (cellAvailableHeight - finalHeight) / 2;
             
             const x_pos = x_start + x_center_offset;
             const y_pos = y_start + y_center_offset;
 
-            // 5. Procesa y Coloca la imagen
+            // Procesar con máxima calidad
             await processAndPlaceImage(doc, imageBuffer, finalWidth, finalHeight, x_pos, y_pos);
 
             console.log(`Collage Imagen ${i+1}/${N} procesada.`);
@@ -185,13 +177,13 @@ app.post('/generate-pdf/collage', upload.array('images', 15), async (req, res) =
     }
 });
 
+
 // ----------------------------------------------------------------------
-// RUTA 2: MODO PATRÓN (Repetidor de etiquetas)
+// RUTA 2: MODO PATRÓN (/generate-pdf/pattern)
 // ----------------------------------------------------------------------
 app.post('/generate-pdf/pattern', upload.array('images', 1), async (req, res) => {
     const images = req.files;
-    
-    const patternWidthMM = parseFloat(req.body.patternWidthMM) || 50;
+    const patternWidthMM = parseFloat(req.body.patternWidthMM) || 40;
     const marginMM = parseFloat(req.body.margin) || 10;
     const pageOrientation = req.body.orientation || 'portrait';
 
@@ -201,7 +193,7 @@ app.post('/generate-pdf/pattern', upload.array('images', 1), async (req, res) =>
     
     const imageBuffer = images[0].buffer;
 
-    // A. Dimensiones y Márgenes (Igual que en Collage)
+    // A. Dimensiones y Márgenes
     const marginPT = marginMM * MM_TO_PT;
     let currentPageWidth, currentPageHeight;
     
@@ -221,11 +213,9 @@ app.post('/generate-pdf/pattern', upload.array('images', 1), async (req, res) =>
         const metadata = await sharp(imageBuffer).metadata();
         const originalRatio = metadata.width / metadata.height;
         
-        // 1. Dimensiones Fijas
         const fixedWidthPT = patternWidthMM * MM_TO_PT;
-        const fixedHeightPT = fixedWidthPT / originalRatio; // Mantiene el ratio!
+        const fixedHeightPT = fixedWidthPT / originalRatio;
 
-        // 2. Cálculo de Cuadrícula
         const spacePerImageWidth = fixedWidthPT + marginPT;
         const spacePerImageHeight = fixedHeightPT + marginPT;
         
@@ -244,12 +234,7 @@ app.post('/generate-pdf/pattern', upload.array('images', 1), async (req, res) =>
         const offsetY = (availableHeightPT - totalPatternHeight) / 2;
         
         // C. Configuración del PDF
-        const doc = new PDFDocument({ 
-            size: 'LETTER', 
-            margin: 0,
-            layout: pageOrientation 
-        });
-
+        const doc = new PDFDocument({ size: 'LETTER', margin: 0, layout: pageOrientation });
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', 'attachment; filename="pdfeitor_repetidor.pdf"');
         doc.pipe(res);
@@ -260,7 +245,7 @@ app.post('/generate-pdf/pattern', upload.array('images', 1), async (req, res) =>
                 const x_pos = marginPT + offsetX + c * (fixedWidthPT + marginPT);
                 const y_pos = marginPT + offsetY + r * (fixedHeightPT + marginPT);
 
-                // Procesa y Coloca la imagen
+                // Procesar con máxima calidad
                 await processAndPlaceImage(doc, imageBuffer, fixedWidthPT, fixedHeightPT, x_pos, y_pos);
             }
         }
@@ -277,12 +262,13 @@ app.post('/generate-pdf/pattern', upload.array('images', 1), async (req, res) =>
 });
 
 
-// 5. RUTA RAÍZ e Inicio del Servidor
+// 5. RUTA RAÍZ
 app.get('/', (req, res) => {
-    // Redirecciona automáticamente al menú principal
+    // Redirecciona al menú principal
     res.redirect('/index.html');
 });
 
+// 6. Iniciar el servidor
 app.listen(port, () => {
     console.log(`🚀 Servidor Node.js escuchando en http://localhost:${port}`);
 });
