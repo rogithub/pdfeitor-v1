@@ -18,15 +18,15 @@
         <h2>1. Imagen y Tamaño</h2>
         <div>
             <label for="fileInput">Selecciona **UNA** imagen para repetir:</label>
-            <input type="file" id="fileInput" name="images" required>
+            <input type="file" name="image" accept="image/*">
         </div>
 
         <div class="config-box">
             <h3>📐 Dimensiones de la Etiqueta</h3>
             <p>La **Altura** se ajusta automáticamente para **conservar el ratio** de la imagen original.</p>
             <div>
-                <label for="patternWidthMM">Ancho deseado de cada imagen (mm):</label>
-                <input type="number" id="patternWidthMM" name="patternWidthMM" value="40" min="10" step="1" required>
+                <label for="imageWidth">Ancho deseado de cada imagen (mm):</label>
+                <input type="number" name="imageWidth" value="50">
             </div>
         </div>
         
@@ -41,7 +41,7 @@
         </div>
 
         <div>
-            <label for="margin">Margen de la página y entre imágenes (mm):</label>
+            <label for="margin">Margen de la página:</label>
             <input type="number" name="margin" value="5">
         </div>
         <div>  
