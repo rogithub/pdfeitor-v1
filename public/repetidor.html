@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pdfeitor V1: Repetidor de Imágenes (Etiquetas)</title>
+    <style>
+        /* ... (Estilos similares a tu formulario original) ... */
+        .config-box { border-left: 5px solid #ffc107; padding-left: 15px; margin-top: 20px; background-color: #fffbef; padding: 20px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>✂️ Pdfeitor V1: Repetidor (Lámina de Etiquetas)</h1>
+    <p>Sube una sola imagen para crear un patrón repetido en la página.</p>
+
+    <form action="/generate-pdf/pattern" method="post" enctype="multipart/form-data">
+        
+        <h2>1. Imagen y Tamaño</h2>
+        <div>
+            <label for="fileInput">Selecciona **UNA** imagen para repetir:</label>
+            <input type="file" id="fileInput" name="images" required>
+        </div>
+
+        <div class="config-box">
+            <h3>📐 Dimensiones de la Etiqueta</h3>
+            <p>La **Altura** se ajusta automáticamente para **conservar el ratio** de la imagen original.</p>
+            <div>
+                <label for="patternWidthMM">Ancho deseado de cada imagen (mm):</label>
+                <input type="number" id="patternWidthMM" name="patternWidthMM" value="40" min="10" step="1" required>
+            </div>
+        </div>
+        
+        <h2>2. Configuración de la Página</h2>
+
+        <div>
+            <label for="orientation">Orientación del PDF:</label>
+            <select id="orientation" name="orientation" required>
+                <option value="portrait">Vertical (Portrait)</option>
+                <option value="landscape">Horizontal (Landscape)</option>
+            </select>
+        </div>
+
+        <div>
+            <label for="margin">Margen entre imágenes y al borde (mm):</label>
+            <input type="number" id="margin" name="margin" value="10" min="0" step="1" required>
+        </div>
+
+        <button type="submit">Generar Lámina de Etiquetas</button>
+    </form>
+</body>
+</html>
