@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creador de Collages PDF (v1)</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+        h1 { color: #333; }
+        form div { margin-bottom: 15px; border: 1px solid #ddd; padding: 15px; border-radius: 5px;}
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="file"] { display: block; margin-top: 5px; }
+        button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>🖼️ Redimensionador/Collage PDF</h1>
+    <p>Sube una o varias imágenes para generar un PDF tamaño carta, manteniendo el ratio y la calidad.</p>
+
+    <form action="/generate-pdf" method="post" enctype="multipart/form-data">
+        <div>
+            <label for="images">Selecciona Imagen(es):</label>
+            <input type="file" id="images" name="images" accept="image/*" multiple required>
+        </div>
+
+        <div>
+            <label for="orientation">Orientación del PDF:</label>
+            <select id="orientation" name="orientation" required>
+                <option value="portrait">Vertical (Portrait)</option>
+                <option value="landscape">Horizontal (Landscape)</option>
+            </select>
+        </div>
+        
+        <div>
+            <label for="margin">Margen de la página y entre imágenes (mm):</label>
+            <input type="number" id="margin" name="margin" value="10" min="0" required>
+        </div>
+
+        <button type="submit">Generar PDF</button>
+    </form>
+</body>
+</html>
