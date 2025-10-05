@@ -6,7 +6,7 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Configuración de multer - CORREGIDO
+// Configuración de multer
 const storage = multer.memoryStorage();
 const upload = multer({ 
   storage: storage,
@@ -62,14 +62,14 @@ function getImageDimensions(buffer) {
   });
 }
 
-// Algoritmo mejorado para layout
-function calculateImageLayout(images, containerWidth, containerHeight, spacing) {
+// ALGORITMO SIMPLE Y EFECTIVO PARA MÚLTIPLES IMÁGENES (inspirado en main branch)
+function calculateGridLayout(images, containerWidth, containerHeight, spacing) {
   const positions = [];
   const numImages = images.length;
 
   if (numImages === 0) return positions;
 
-  // Para una sola imagen - OCUPAR TODO EL ESPACIO MANTENIENDO RATIO
+  // PARA UNA SOLA IMAGEN - COMPORTAMIENTO ACTUAL (NO CAMBIAR)
   if (numImages === 1) {
     const img = images[0];
     const imgRatio = img.width / img.height;
@@ -78,16 +78,13 @@ function calculateImageLayout(images, containerWidth, containerHeight, spacing) 
     let width, height;
     
     if (imgRatio > containerRatio) {
-      // Imagen más ancha que el contenedor
       width = containerWidth;
       height = containerWidth / imgRatio;
     } else {
-      // Imagen más alta que el contenedor
       height = containerHeight;
       width = containerHeight * imgRatio;
     }
 
-    // Centrar la imagen
     const x = (containerWidth - width) / 2;
     const y = (containerHeight - height) / 2;
 
@@ -102,58 +99,76 @@ function calculateImageLayout(images, containerWidth, containerHeight, spacing) 
     return positions;
   }
 
-  // Para múltiples imágenes
-  let cols = Math.ceil(Math.sqrt(numImages));
-  let rows = Math.ceil(numImages / cols);
+  // PARA MÚLTIPLES IMÁGENES - APPROACH SIMPLE Y CONFIABLE
+  console.log(`Organizando ${numImages} imágenes en grid`);
+
+  // Calcular número óptimo de columnas y filas
+  let cols, rows;
   
-  // Ajustar grid para mejor uso del espacio
-  const areaRatio = containerWidth / containerHeight;
-  if (areaRatio > 1.2 && numImages > 2) {
-    cols = Math.min(Math.ceil(Math.sqrt(numImages * areaRatio)), numImages);
+  if (numImages <= 4) {
+    // Para pocas imágenes, usar grid cuadrado
+    cols = Math.ceil(Math.sqrt(numImages));
     rows = Math.ceil(numImages / cols);
+  } else {
+    // Para más imágenes, optimizar para llenar espacio
+    const containerRatio = containerWidth / containerHeight;
+    cols = Math.ceil(Math.sqrt(numImages * containerRatio));
+    rows = Math.ceil(numImages / cols);
+    
+    // Ajustar para minimizar celdas vacías
+    while ((cols * rows) - numImages >= cols) {
+      cols++;
+      rows = Math.ceil(numImages / cols);
+    }
   }
 
-  // Calcular tamaño de celda
+  // Calcular dimensiones de celda
   const cellWidth = (containerWidth - (cols - 1) * spacing) / cols;
   const cellHeight = (containerHeight - (rows - 1) * spacing) / rows;
 
-  // Distribuir imágenes
+  console.log(`Grid: ${cols} columnas x ${rows} filas, Celda: ${cellWidth.toFixed(1)}x${cellHeight.toFixed(1)}mm`);
+
+  // Colocar cada imagen en su celda correspondiente
   for (let i = 0; i < numImages; i++) {
+    const img = images[i];
     const row = Math.floor(i / cols);
     const col = i % cols;
-    const img = images[i];
+    
     const imgRatio = img.width / img.height;
     const cellRatio = cellWidth / cellHeight;
 
-    // Calcular tamaño manteniendo relación de aspecto
+    // Calcular dimensiones manteniendo relación de aspecto
     let width, height;
+    
     if (imgRatio > cellRatio) {
-      // Imagen más ancha que la celda
+      // Imagen más ancha que la celda - usar ancho completo
       width = cellWidth;
       height = cellWidth / imgRatio;
     } else {
-      // Imagen más alta que la celda
+      // Imagen más alta que la celda - usar alto completo
       height = cellHeight;
       width = cellHeight * imgRatio;
     }
 
-    // Centrar en celda
+    // Centrar la imagen en la celda
     const x = col * (cellWidth + spacing) + (cellWidth - width) / 2;
     const y = row * (cellHeight + spacing) + (cellHeight - height) / 2;
 
     positions.push({ 
-      x: Math.max(0, x), 
-      y: Math.max(0, y), 
-      width: Math.min(width, cellWidth), 
-      height: Math.min(height, cellHeight), 
-      image: img 
+      x: x, 
+      y: y, 
+      width: width, 
+      height: height, 
+      image: img
     });
+
+    console.log(`Imagen ${i+1}: celda(${col},${row}), pos(${x.toFixed(1)},${y.toFixed(1)}), tamaño(${width.toFixed(1)}x${height.toFixed(1)})`);
   }
 
   return positions;
 }
 
-// Endpoint para collage - CORREGIDO
+// Endpoint para collage - VERSIÓN CONFIABLE
 app.post('/generate-collage', upload.array('images', 12), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
@@ -198,23 +213,16 @@ app.post('/generate-collage', upload.array('images', 12), async (req, res) => {
     const usableWidth = pageWidth - (2 * marginNum);
     const usableHeight = pageHeight - (2 * marginNum);
 
-    console.log('Área utilizable:', { usableWidth, usableHeight });
+    console.log(`Área utilizable: ${usableWidth}x${usableHeight}mm`);
 
-    // Calcular layout
-    const layout = calculateImageLayout(images, usableWidth, usableHeight, spacingNum);
+    // Calcular layout (grid simple y confiable)
+    const layout = calculateGridLayout(images, usableWidth, usableHeight, spacingNum);
 
     // Agregar imágenes al PDF
     for (const item of layout) {
-      console.log('Agregando imagen:', { 
-        x: marginNum + item.x, 
-        y: marginNum + item.y, 
-        width: item.width, 
-        height: item.height 
-      });
-      
       pdf.addImage(
         item.image.dataUrl,
-        'JPEG', // Usar JPEG para mejor compatibilidad
+        'JPEG',
         marginNum + item.x,
         marginNum + item.y,
         item.width,
@@ -235,25 +243,17 @@ app.post('/generate-collage', upload.array('images', 12), async (req, res) => {
   }
 });
 
-// Endpoint para repetidor - CORREGIDO (usando .single y field names correctos)
+// Endpoint para repetidor - MANTENER EXACTAMENTE IGUAL (FUNCIONALIDAD MARAVILLOSA)
 app.post('/generate-repetidor', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No se seleccionó imagen' });
     }
 
-    // Los nombres de campos deben coincidir con tu HTML
     const { orientation, margin, spacing, imageWidth } = req.body;
     const marginNum = parseFloat(margin) || 5;
     const spacingNum = parseFloat(spacing) || 2;
     const imageWidthNum = parseFloat(imageWidth) || 50;
-
-    console.log('Generando repetidor con:', {
-      orientation,
-      margin: marginNum,
-      spacing: spacingNum,
-      imageWidth: imageWidthNum
-    });
 
     // Procesar imagen con dimensiones REALES
     const dimensions = await getImageDimensions(req.file.buffer);
@@ -281,7 +281,7 @@ app.post('/generate-repetidor', upload.single('image'), async (req, res) => {
     const cols = Math.floor((usableWidth + spacingNum) / (imageWidthNum + spacingNum));
     const rows = Math.floor((usableHeight + spacingNum) / (imageHeightNum + spacingNum));
 
-    console.log('Grid repetidor:', { cols, rows, imageWidth: imageWidthNum, imageHeight: imageHeightNum });
+    console.log(`Repetidor: ${cols}x${rows} imágenes de ${imageWidthNum}x${imageHeightNum}mm`);
 
     // Agregar imágenes repetidas
     for (let row = 0; row < rows; row++) {
@@ -314,7 +314,7 @@ app.use((error, req, res, next) => {
       return res.status(400).json({ error: 'Archivo demasiado grande' });
     }
     if (error.code === 'LIMIT_UNEXPECTED_FILE') {
-      return res.status(400).json({ error: 'Campo de archivo inesperado. Verifica el nombre del campo en el formulario.' });
+      return res.status(400).json({ error: 'Campo de archivo inesperado' });
     }
   }
   console.error('Error general:', error);
