@@ -18,7 +18,7 @@
     <h1>🖼️ Redimensionador/Collage PDF</h1>
     <p>Sube una o varias imágenes para generar un PDF tamaño carta, manteniendo el ratio y la calidad.</p>
 
-    <form action="/generate-pdf/collage" method="post" enctype="multipart/form-data">
+    <form action="/generate-collage" method="post" enctype="multipart/form-data">
         <div>
             <label for="images">Selecciona Imagen(es):</label>
             <input type="file" id="images" name="images" accept="image/*" multiple required>
@@ -34,7 +34,11 @@
         
         <div>
             <label for="margin">Margen de la página y entre imágenes (mm):</label>
-            <input type="number" id="margin" name="margin" value="10" min="0" required>
+            <input type="number" name="margin" value="5">
+        </div>
+        <div>  
+            <label for="spacing">Espaciado (mm):</label>
+            <input type="number" name="spacing" value="2">
         </div>
 
         <button type="submit">Generar PDF</button>
