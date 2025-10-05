@@ -1,0 +1,40 @@
+# .gitignore
+
+# ---------------------------------------------
+# 1. Dependencias de Node.js
+# ---------------------------------------------
+# Excluye la carpeta de módulos que se genera al instalar dependencias
+node_modules/
+
+# Excluye los logs de npm
+npm-debug.log
+.npm/
+
+# ---------------------------------------------
+# 2. Archivos Temporales y Generados
+# ---------------------------------------------
+# Archivos de caché del SO
+.DS_Store
+Thumbs.db
+
+# Archivos de respaldo de editores comunes
+*.swp
+*~
+
+# Archivos generados por Multer, si se usara almacenamiento en disco (aunque usamos memoria)
+# uploads/
+
+# Archivos de IDEs (Visual Studio Code, IntelliJ, etc.)
+.vscode/
+.idea/
+
+# ---------------------------------------------
+# 3. Datos Sensibles y Generados en la Ejecución
+# ---------------------------------------------
+# Archivos de configuración locales que contienen secretos o credenciales
+.env
+.env.local
+
+# Archivos de salida del programa (si los guardaras en el servidor, 
+# aunque actualmente se envían directamente al cliente)
+*.pdf
