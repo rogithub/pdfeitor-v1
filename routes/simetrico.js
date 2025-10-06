@@ -52,23 +52,31 @@ async function processAndRotateImages(files, forceOrientation) {
 }
 
 
-// Algoritmo de layout simplificado (ya no maneja rotación)
-function calculateSymmetricLayout(images, containerWidth, containerHeight, imagesPerRow, spacing) {
+// Algoritmo de layout actualizado para usar una cuadrícula fija
+function calculateSymmetricLayout(images, containerWidth, containerHeight, imagesPerRow, rowsPerPage, spacing) {
     const numImages = images.length;
     if (numImages === 0) return [];
 
+    // La cuadrícula ahora es fija, definida por el usuario
     const cols = parseInt(imagesPerRow, 10);
-    const rows = Math.ceil(numImages / cols);
+    const rows = parseInt(rowsPerPage, 10);
     
     const cellWidth = (containerWidth - (cols - 1) * spacing) / cols;
     const cellHeight = (containerHeight - (rows - 1) * spacing) / rows;
-    console.log(`[SIMETRICO-LAYOUT] Grid: ${cols}x${rows}, Celda: ${cellWidth.toFixed(1)}x${cellHeight.toFixed(1)}mm`);
+    console.log(`[SIMETRICO-LAYOUT] Cuadrícula Fija: ${cols}x${rows}, Celda: ${cellWidth.toFixed(1)}x${cellHeight.toFixed(1)}mm`);
 
     const positions = [];
+    // El bucle solo itera sobre las imágenes disponibles, llenando la cuadrícula desde el inicio
     for (let i = 0; i < numImages; i++) {
         const img = images[i];
         const row = Math.floor(i / cols);
         const col = i % cols;
+
+        // Si se suben más imágenes de las que caben en la cuadrícula, se ignoran las sobrantes.
+        if (row >= rows) {
+            console.log(`[SIMETRICO-LAYOUT] Advertencia: La imagen ${i+1} está fuera de la cuadrícula definida (${cols}x${rows}) y será ignorada.`);
+            continue;
+        }
 
         const imgRatio = img.width / img.height;
         const cellRatio = cellWidth / cellHeight;
@@ -91,34 +99,38 @@ function calculateSymmetricLayout(images, containerWidth, containerHeight, image
 }
 
 
-// Endpoint principal actualizado
+// Endpoint principal actualizado con la nueva lógica de cuadrícula fija
 async function generateSimetrico(req, res) {
     try {
         if (!req.files || req.files.length === 0) {
             return res.status(400).json({ error: 'No se seleccionaron imágenes' });
         }
 
-        const { orientation, margin, spacing, imagesPerRow, forceOrientation } = req.body;
+        const { orientation, margin, spacing, imagesPerRow, forceOrientation, rowsPerPage } = req.body;
         const marginNum = parseFloat(margin) || 10;
         const spacingNum = parseFloat(spacing) || 5;
         const imagesPerRowNum = parseInt(imagesPerRow, 10) || 2;
+        // Si no se especifica rowsPerPage, se calcula dinámicamente como antes para no romper la funcionalidad original.
+        const rowsPerRowNum = parseInt(rowsPerPage, 10) || Math.ceil(req.files.length / imagesPerRowNum);
+
 
         // 1. Procesar y rotar imágenes primero con Sharp
         const images = await processAndRotateImages(req.files, forceOrientation);
 
-        // 2. Crear PDF y calcular layout con las imágenes ya corregidas
+        // 2. Crear PDF y calcular layout en una sola página
         const pdf = common.createPDF(orientation);
         const { pageWidth, pageHeight } = common.getPageDimensions(orientation);
         const usableWidth = pageWidth - (2 * marginNum);
         const usableHeight = pageHeight - (2 * marginNum);
 
-        const layout = calculateSymmetricLayout(images, usableWidth, usableHeight, imagesPerRowNum, spacingNum);
+        // Se pasa rowsPerRowNum a la función de layout
+        const layout = calculateSymmetricLayout(images, usableWidth, usableHeight, imagesPerRowNum, rowsPerRowNum, spacingNum);
 
-        // 3. Agregar imágenes al PDF (lógica simple, sin rotación aquí)
+        // 3. Agregar imágenes al PDF
         for (const item of layout) {
             pdf.addImage(
                 item.image.dataUrl,
-                'JPEG', // jsPDF se encarga de la compresión
+                'JPEG',
                 marginNum + item.x,
                 marginNum + item.y,
                 item.width,

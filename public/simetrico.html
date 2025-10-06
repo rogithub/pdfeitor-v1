@@ -33,6 +33,11 @@
                 <small>Define cuántas imágenes quieres en cada renglón (e.g., 2 para mitades, 3 para tercios).</small>
             </div>
             <div style="margin-top: 15px;">
+                <label for="rowsPerPage">Filas por Página:</label>
+                <input type="number" id="rowsPerPage" name="rowsPerPage" value="2" min="1" required>
+                <small>Define cuántas filas de imágenes quieres en cada página. Esto permite crear múltiples páginas.</small>
+            </div>
+            <div style="margin-top: 15px;">
                 <label for="forceOrientation">Forzar Orientación de Imágenes:</label>
                 <select id="forceOrientation" name="forceOrientation">
                     <option value="auto" selected>Automático (según la mayoría)</option>
