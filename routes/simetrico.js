@@ -106,13 +106,11 @@ async function generateSimetrico(req, res) {
             return res.status(400).json({ error: 'No se seleccionaron imágenes' });
         }
 
-        const { orientation, margin, spacing, imagesPerRow, forceOrientation, rowsPerPage } = req.body;
+        const { orientation, margin, spacing, imagesPerRow, forceOrientation, rowsPerPage, useHalfPage } = req.body;
         const marginNum = parseFloat(margin) || 10;
         const spacingNum = parseFloat(spacing) || 5;
         const imagesPerRowNum = parseInt(imagesPerRow, 10) || 2;
-        // Si no se especifica rowsPerPage, se calcula dinámicamente como antes para no romper la funcionalidad original.
         const rowsPerRowNum = parseInt(rowsPerPage, 10) || Math.ceil(req.files.length / imagesPerRowNum);
-
 
         // 1. Procesar y rotar imágenes primero con Sharp
         const images = await processAndRotateImages(req.files, forceOrientation);
@@ -120,10 +118,18 @@ async function generateSimetrico(req, res) {
         // 2. Crear PDF y calcular layout en una sola página
         const pdf = common.createPDF(orientation);
         const { pageWidth, pageHeight } = common.getPageDimensions(orientation);
+        
         const usableWidth = pageWidth - (2 * marginNum);
-        const usableHeight = pageHeight - (2 * marginNum);
+        let usableHeight = pageHeight - (2 * marginNum);
 
-        // Se pasa rowsPerRowNum a la función de layout
+        // Si la opción de media página está activa, ajustamos la altura usable.
+        if (useHalfPage) {
+            console.log('[SIMETRICO] Opción de media página activada. Reduciendo altura usable.');
+            // La altura del contenedor se calcula desde el margen superior hasta la mitad de la página.
+            usableHeight = (pageHeight / 2) - marginNum;
+        }
+
+        // Se pasa la altura (completa o media) a la función de layout
         const layout = calculateSymmetricLayout(images, usableWidth, usableHeight, imagesPerRowNum, rowsPerRowNum, spacingNum);
 
         // 3. Agregar imágenes al PDF
