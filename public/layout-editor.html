@@ -13,7 +13,19 @@
                     background-color: white; 
                     box-sizing: border-box;
                 }
-                .control-group { margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px; background-color: #fff; }
+                .control-group { margin-bottom: 15px; border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #fff; }
+                .control-group h3 {
+                    margin-top: 0;
+                    padding-bottom: 10px;
+                    border-bottom: 1px solid #eee;
+                    font-size: 1.1em;
+                }
+                .info-text {
+                    font-size: 0.85em;
+                    color: #6c757d;
+                    margin-top: 0;
+                    margin-bottom: 10px;
+                }
                 label { display: block; margin-bottom: 5px; font-weight: bold; }
                 input, select, button { width: 100%; padding: 8px; box-sizing: border-box; }
                 button { background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; margin-top: 10px; }
@@ -83,9 +95,10 @@
                 <body>
                     <aside id="controls">
                         <h1>Editor de Layouts</h1>
-                        
+                
+                        <!-- Sección 1: Configuración de la página y márgenes -->
                         <div class="control-group">
-                            <h3>Configuración de Página</h3>
+                            <h3>1. Configuración de Página</h3>
                             <div>
                                 <label for="orientation">Orientación</label>
                                 <select id="orientation" name="orientation">
@@ -94,25 +107,18 @@
                                 </select>
                             </div>
                             <div style="margin-top: 15px;">
+                                <label for="margin">Margen de Página (mm)</label>
+                                <input type="number" id="margin" name="margin" value="10" min="0">
+                            </div>
+                            <div style="margin-top: 15px;">
                                 <input type="checkbox" id="useHalfPage" name="useHalfPage" style="width: auto;">
                                 <label for="useHalfPage" style="display: inline-block;">Usar solo media página</label>
                             </div>
                         </div>
                 
+                        <!-- Sección 2: Diseño de la cuadrícula y acciones -->
                         <div class="control-group">
-                            <h3>Márgenes y Espaciado (mm)</h3>
-                            <div>
-                                <label for="margin">Margen de Página</label>
-                                <input type="number" id="margin" name="margin" value="10" min="0">
-                            </div>
-                            <div style="margin-top: 15px;">
-                                <label for="spacing">Espaciado entre Celdas</label>
-                                <input type="number" id="spacing" name="spacing" value="5" min="0">
-                            </div>
-                        </div>
-                
-                        <div class="control-group">
-                            <h3>Crear Cuadrícula Base</h3>
+                            <h3>2. Diseño de Cuadrícula</h3>
                             <div>
                                 <label for="base-cols">Columnas</label>
                                 <input type="number" id="base-cols" value="2" min="1">
@@ -121,16 +127,25 @@
                                 <label for="base-rows">Filas</label>
                                 <input type="number" id="base-rows" value="2" min="1">
                             </div>
-                            <button id="create-grid-btn">Crear Cuadrícula</button>
+                             <div style="margin-top: 15px;">
+                                <label for="spacing">Espaciado entre Celdas (mm)</label>
+                                <input type="number" id="spacing" name="spacing" value="5" min="0">
+                            </div>
+                            <button id="create-grid-btn" style="margin-top: 15px;">Aplicar Cuadrícula</button>
                         </div>
-                
+                        
                         <div class="control-group">
                             <h3>Acciones de Celda</h3>
+                            <p class="info-text">(Mantén <b>Ctrl</b> para seleccionar varias celdas)</p>
                             <button id="merge-cells-btn" disabled>Combinar Celdas</button>
                             <button id="split-cells-btn" disabled style="margin-top: 5px; background-color: #ffc107;">Separar Celda</button>
                         </div>
                 
-                        <button id="generate-pdf-btn" style="background-color: #28a745;">Generar PDF</button>
+                        <!-- Sección 3: Generar el PDF final -->
+                        <div class="control-group">
+                            <h3>3. Finalizar</h3>
+                            <button id="generate-pdf-btn" style="background-color: #28a745;">Generar PDF</button>
+                        </div>
                     </aside>
                 
                     <main id="main-content">
