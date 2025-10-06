@@ -25,6 +25,13 @@
             <input type="file" id="images" name="images" accept="image/*" multiple required>
         </div>
 
+        <div>
+            <input type="checkbox" id="useHalfPage" name="useHalfPage" style="display: inline-block; width: auto;">
+            <label for="useHalfPage" style="display: inline-block; font-weight: bold;">Usar solo media página</label>
+            <small style="display: block; margin-top: 5px;">Confina las imágenes a la mitad superior de la hoja (ideal para impresiones de $6).</small>
+        </div>
+
+
         <div class="config-box">
             <h3>Configuración de la Cuadrícula</h3>
             <div>
@@ -32,6 +39,7 @@
                 <input type="number" id="imagesPerRow" name="imagesPerRow" value="2" min="1" required>
                 <small>Define cuántas imágenes quieres en cada renglón (e.g., 2 para mitades, 3 para tercios).</small>
             </div>
+
             <div style="margin-top: 15px;">
                 <label for="rowsPerPage">Filas por Página:</label>
                 <input type="number" id="rowsPerPage" name="rowsPerPage" value="2" min="1" required>
@@ -64,13 +72,7 @@
             <label for="spacing">Espaciado entre imágenes (mm):</label>
             <input type="number" name="spacing" value="5">
         </div>
-
-        <div>
-            <input type="checkbox" id="useHalfPage" name="useHalfPage" style="display: inline-block; width: auto;">
-            <label for="useHalfPage" style="display: inline-block; font-weight: bold;">Usar solo media página</label>
-            <small style="display: block; margin-top: 5px;">Confina las imágenes a la mitad superior de la hoja (ideal para impresiones de $6).</small>
-        </div>
-
+        
         <button type="submit">Generar PDF Simétrico</button>
     </form>
 </body>
