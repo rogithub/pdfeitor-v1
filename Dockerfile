@@ -17,8 +17,9 @@ COPY package*.json ./
 
 # 5. Instalar dependencias
 # - Se instala 'build-base' (herramientas de compilación en Alpine) temporalmente.
+# - Se añade 'vips-dev' que es requerido por la librería 'sharp'.
 # - Se usa --omit=dev para no instalar dependencias de desarrollo.
-RUN apk add --no-cache python3 g++ make \
+RUN apk add --no-cache python3 g++ make vips-dev \
     && npm install --omit=dev \
     && apk del python3 g++ make
 
