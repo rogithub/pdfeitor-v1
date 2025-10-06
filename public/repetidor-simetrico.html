@@ -37,6 +37,11 @@
             </div>
         </div>
 
+        <div id="visual-aid-container" style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; text-align: center;">
+            <label style="margin-bottom: 10px;">Previsualización de la Cuadrícula</label>
+            <svg id="visual-aid-svg" width="150" height="194" style="border: 1px solid #ccc;"></svg>
+        </div>
+
         <div>
             <label for="orientation">Orientación del PDF:</label>
             <select id="orientation" name="orientation" required>
@@ -62,5 +67,63 @@
 
         <button type="submit">Generar PDF Repetido</button>
     </form>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const orientationSelect = document.getElementById('orientation');
+        const imagesPerRowInput = document.getElementById('imagesPerRow');
+        const rowsPerPageInput = document.getElementById('rowsPerPage');
+        const svgContainer = document.getElementById('visual-aid-svg');
+
+        function updateVisualAid() {
+            if (!orientationSelect || !imagesPerRowInput || !rowsPerPageInput || !svgContainer) return;
+
+            const orientation = orientationSelect.value;
+            const cols = parseInt(imagesPerRowInput.value, 10) || 1;
+            const rows = parseInt(rowsPerPageInput.value, 10) || 1;
+
+            const PADDING = 5;
+            let svgWidth, svgHeight, viewBoxWidth, viewBoxHeight;
+
+            if (orientation === 'portrait') {
+                svgWidth = 150;
+                svgHeight = 194;
+                viewBoxWidth = 215.9;
+                viewBoxHeight = 279.4;
+            } else {
+                svgWidth = 194;
+                svgHeight = 150;
+                viewBoxWidth = 279.4;
+                viewBoxHeight = 215.9;
+            }
+
+            svgContainer.setAttribute('width', svgWidth);
+            svgContainer.setAttribute('height', svgHeight);
+            svgContainer.setAttribute('viewBox', `0 0 ${viewBoxWidth} ${viewBoxHeight}`);
+
+            let svgContent = `<rect x="0" y="0" width="${viewBoxWidth}" height="${viewBoxHeight}" fill="#f9f9f9" stroke="#ccc" stroke-width="1"/>`;
+
+            const cellWidth = (viewBoxWidth - PADDING * 2) / cols;
+            const cellHeight = (viewBoxHeight - PADDING * 2) / rows;
+            const rectWidth = cellWidth * 0.9;
+            const rectHeight = cellHeight * 0.9;
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const x = PADDING + (c * cellWidth) + (cellWidth - rectWidth) / 2;
+                    const y = PADDING + (r * cellHeight) + (cellHeight - rectHeight) / 2;
+                    svgContent += `<rect x="${x}" y="${y}" width="${rectWidth}" height="${rectHeight}" fill="#e0e0e0" rx="5"/>`;
+                }
+            }
+            svgContainer.innerHTML = svgContent;
+        }
+
+        orientationSelect.addEventListener('change', updateVisualAid);
+        imagesPerRowInput.addEventListener('input', updateVisualAid);
+        rowsPerPageInput.addEventListener('input', updateVisualAid);
+
+        updateVisualAid();
+    });
+</script>
 </body>
 </html>
