@@ -6,6 +6,7 @@ const path = require('path');
 const collageRoutes = require('./routes/collage');
 const repetidorRoutes = require('./routes/repetidor');
 const simetricoRoutes = require('./routes/simetrico');
+const repetidorSimetricoRoutes = require('./routes/repetidor-simetrico'); // Nueva ruta
 const common = require('./routes/common');
 
 const app = express();
@@ -42,10 +43,15 @@ app.get('/simetrico', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'simetrico.html'));
 });
 
+app.get('/repetidor-simetrico', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'repetidor-simetrico.html'));
+});
+
 // Configurar rutas
 app.post('/generate-collage', upload.array('images', 12), collageRoutes.generateCollage);
 app.post('/generate-repetidor', upload.single('image'), repetidorRoutes.generateRepetidor);
 app.post('/generate-simetrico', upload.array('images', 12), simetricoRoutes.generateSimetrico);
+app.post('/generate-repetidor-simetrico', upload.single('image'), repetidorSimetricoRoutes.generateRepetidorSimetrico); // Nueva ruta
 
 // Manejo de errores
 app.use((error, req, res, next) => {
