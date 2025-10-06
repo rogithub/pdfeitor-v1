@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pdfeitor V1: Editor de Layouts</title>
+    <style>
+        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; }
+        #controls { width: 300px; padding: 20px; background-color: #f8f9fa; overflow-y: auto; border-right: 1px solid #dee2e6;}
+        #main-content { flex-grow: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #e9ecef; }
+        #design-container { 
+                    border: 2px dashed #ccc; 
+                    background-color: white; 
+                    box-sizing: border-box;
+                }
+                .control-group { margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px; background-color: #fff; }
+                label { display: block; margin-bottom: 5px; font-weight: bold; }
+                input, select, button { width: 100%; padding: 8px; box-sizing: border-box; }
+                button { background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; margin-top: 10px; }
+                button:hover { background-color: #0056b3; }
+                button:disabled { background-color: #cccccc; cursor: not-allowed; }
+                #grid-container { display: grid; width: 100%; height: 100%; }
+                .grid-cell { 
+                            border: 1px solid #ddd; 
+                            background-color: #f0f0f0; 
+                            cursor: pointer;
+                            overflow: hidden;
+                        }
+                        .image-container {
+                            width: 100%;
+                            height: 100%;
+                            background-size: contain;
+                            background-repeat: no-repeat;
+                            background-position: center;
+                        }
+                        .grid-cell.selected { background-color: #a0c4ff; border-color: #0056b3; }
+                
+                        /* Estilos del Modal */
+                        #image-modal {
+                            display: none; /* Oculto por defecto */
+                            position: fixed;
+                            z-index: 1000;
+                            left: 0;
+                            top: 0;
+                            width: 100%;
+                            height: 100%;
+                            overflow: auto;
+                            background-color: rgba(0,0,0,0.5);
+                            justify-content: center;
+                            align-items: center;
+                        }
+                        .modal-content {
+                            background-color: #fefefe;
+                            margin: auto;
+                            padding: 20px;
+                            border: 1px solid #888;
+                            width: 80%;
+                            max-width: 500px;
+                            border-radius: 10px;
+                        }
+                        #image-preview-container {
+                            width: 100%;
+                            height: 250px;
+                            border: 1px dashed #ccc;
+                            margin-top: 10px;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            overflow: hidden;
+                        }
+                        #image-preview {
+                            max-width: 100%;
+                            max-height: 100%;
+                            transition: transform 0.3s ease;
+                        }
+                        .modal-actions {
+                            display: flex;
+                            justify-content: space-between;
+                            margin-top: 15px;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <aside id="controls">
+                        <h1>Editor de Layouts</h1>
+                        
+                        <div class="control-group">
+                            <h3>Configuración de Página</h3>
+                            <div>
+                                <label for="orientation">Orientación</label>
+                                <select id="orientation" name="orientation">
+                                    <option value="portrait" selected>Vertical</option>
+                                    <option value="landscape">Horizontal</option>
+                                </select>
+                            </div>
+                            <div style="margin-top: 15px;">
+                                <input type="checkbox" id="useHalfPage" name="useHalfPage" style="width: auto;">
+                                <label for="useHalfPage" style="display: inline-block;">Usar solo media página</label>
+                            </div>
+                        </div>
+                
+                        <div class="control-group">
+                            <h3>Márgenes y Espaciado (mm)</h3>
+                            <div>
+                                <label for="margin">Margen de Página</label>
+                                <input type="number" id="margin" name="margin" value="10" min="0">
+                            </div>
+                            <div style="margin-top: 15px;">
+                                <label for="spacing">Espaciado entre Celdas</label>
+                                <input type="number" id="spacing" name="spacing" value="5" min="0">
+                            </div>
+                        </div>
+                
+                        <div class="control-group">
+                            <h3>Crear Cuadrícula Base</h3>
+                            <div>
+                                <label for="base-cols">Columnas</label>
+                                <input type="number" id="base-cols" value="2" min="1">
+                            </div>
+                            <div style="margin-top: 15px;">
+                                <label for="base-rows">Filas</label>
+                                <input type="number" id="base-rows" value="2" min="1">
+                            </div>
+                            <button id="create-grid-btn">Crear Cuadrícula</button>
+                        </div>
+                
+                        <div class="control-group">
+                            <h3>Acciones de Celda</h3>
+                            <button id="merge-cells-btn" disabled>Combinar Celdas</button>
+                            <button id="split-cells-btn" disabled style="margin-top: 5px; background-color: #ffc107;">Separar Celda</button>
+                        </div>
+                
+                        <button id="generate-pdf-btn" style="background-color: #28a745;">Generar PDF</button>
+                    </aside>
+                
+                    <main id="main-content">
+                        <div id="design-container">
+                            <div id="grid-container">
+                                <!-- Las celdas de la cuadrícula se generarán aquí -->
+                            </div>
+                        </div>
+                    </main>
+                
+                    <!-- Modal para la carga de imágenes -->
+                    <div id="image-modal">
+                        <div class="modal-content">
+                            <h2>Editar Celda</h2>
+                            <label for="image-input">Seleccionar Imagen:</label>
+                            <input type="file" id="image-input" accept="image/*">
+                            <div id="image-preview-container">
+                                <img id="image-preview" src="" alt="Previsualización">
+                            </div>
+                            <div class="modal-actions">
+                                <button id="rotate-image-btn">Girar 90°</button>
+                                <button id="remove-image-btn" style="background-color: #dc3545;">Quitar Imagen</button>
+                            </div>
+                            <div class="modal-actions">
+                                <button id="cancel-modal-btn" style="background-color: #6c757d;">Cancelar</button>
+                                <button id="save-image-btn" style="background-color: #28a745;">Guardar</button>
+                            </div>
+                        </div>
+                    </div>
+                
+                    <script>
+                        document.addEventListener('DOMContentLoaded', () => {
+                            // --- ELEMENTOS DEL DOM ---
+                            const orientationSelect = document.getElementById('orientation');
+                            const useHalfPageCheckbox = document.getElementById('useHalfPage');
+                            const createGridBtn = document.getElementById('create-grid-btn');
+                            const baseColsInput = document.getElementById('base-cols');
+                            const baseRowsInput = document.getElementById('base-rows');
+                            const designContainer = document.getElementById('design-container');
+                            const gridContainer = document.getElementById('grid-container');
+                            const marginInput = document.getElementById('margin');
+                            const spacingInput = document.getElementById('spacing');
+                            const mergeBtn = document.getElementById('merge-cells-btn');
+                            const splitBtn = document.getElementById('split-cells-btn');
+                            const generatePdfBtn = document.getElementById('generate-pdf-btn');
+                
+                            // Modal elements
+                            const imageModal = document.getElementById('image-modal');
+                            const imageInput = document.getElementById('image-input');
+                            const imagePreview = document.getElementById('image-preview');
+                            const rotateBtn = document.getElementById('rotate-image-btn');
+                            const removeBtn = document.getElementById('remove-image-btn');
+                            const saveBtn = document.getElementById('save-image-btn');
+                            const cancelBtn = document.getElementById('cancel-modal-btn');
+                
+                            const LETTER_RATIO = 8.5 / 11;
+                            let gridState = [];
+                            let selectedCellIds = new Set();
+                            let activeCellId = null;
+                            let currentRotation = 0;
+                            let currentImageFile = null;
+                            let px_per_mm = 1; // Factor de escala para la previsualización
+                
+                            // --- LÓGICA DE GENERACIÓN DE PDF ---
+                
+                            async function generatePdf() {
+                                generatePdfBtn.disabled = true;
+                                generatePdfBtn.textContent = 'Generando...';
+                
+                                const formData = new FormData();
+                                const visibleCells = [];
+                                let imageCounter = 0;
+                
+                                gridState.forEach(cell => {
+                                    if (cell.visible) {
+                                        const cellData = {
+                                            col: cell.col,
+                                            row: cell.row,
+                                            colSpan: cell.colSpan,
+                                            rowSpan: cell.rowSpan,
+                                            rotation: 0,
+                                            imageName: null
+                                        };
+                
+                                        if (cell.image.file) {
+                                            const imageName = `image_${imageCounter++}`;
+                                            cellData.imageName = imageName;
+                                            cellData.rotation = cell.image.rotation;
+                                            const renamedFile = new File([cell.image.file], imageName, { type: cell.image.file.type });
+                                            formData.append('images', renamedFile);
+                                        }
+                                        visibleCells.push(cellData);
+                                    }
+                                });
+                
+                                const layoutData = {
+                                    pageSettings: {
+                                        orientation: orientationSelect.value,
+                                        useHalfPage: useHalfPageCheckbox.checked,
+                                        margin: parseFloat(marginInput.value),
+                                        spacing: parseFloat(spacingInput.value),
+                                        baseCols: parseInt(baseColsInput.value, 10),
+                                        baseRows: parseInt(baseRowsInput.value, 10)
+                                    },
+                                    cells: visibleCells
+                                };
+                
+                                formData.append('layout', JSON.stringify(layoutData));
+                
+                                try {
+                                    const response = await fetch('/generate-layout', {
+                                        method: 'POST',
+                                        body: formData
+                                    });
+                
+                                    if (!response.ok) throw new Error(`Error del servidor: ${response.statusText}`);
+                
+                                    const blob = await response.blob();
+                                    const url = window.URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.style.display = 'none';
+                                    a.href = url;
+                                    a.download = 'layout.pdf';
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    window.URL.revokeObjectURL(url);
+                                    a.remove();
+                
+                                } catch (error) {
+                                    console.error('Error al generar el PDF:', error);
+                                    alert('Hubo un error al generar el PDF.');
+                                } finally {
+                                    generatePdfBtn.disabled = false;
+                                    generatePdfBtn.textContent = 'Generar PDF';
+                                }
+                            }
+                
+                            // --- LÓGICA DE ESTADO Y RENDERIZADO ---
+                
+                            function updateDesignArea() {
+                                const orientation = orientationSelect.value;
+                                const useHalfPage = useHalfPageCheckbox.checked;
+                                const mainContent = document.getElementById('main-content');
+                                
+                                const availableWidth = mainContent.clientWidth * 0.95;
+                                const availableHeight = mainContent.clientHeight * 0.95;
+                
+                                let containerWidth, containerHeight;
+                
+                                if (orientation === 'portrait') {
+                                    containerHeight = availableHeight;
+                                    containerWidth = containerHeight * LETTER_RATIO;
+                                    if (containerWidth > availableWidth) {
+                                        containerWidth = availableWidth;
+                                        containerHeight = containerWidth / LETTER_RATIO;
+                                    }
+                                } else { // landscape
+                                    containerWidth = availableWidth;
+                                    containerHeight = containerWidth * LETTER_RATIO;
+                                    if (containerHeight > availableHeight) {
+                                        containerHeight = availableHeight;
+                                        containerWidth = containerHeight / LETTER_RATIO;
+                                    }
+                                }
+                
+                                if (useHalfPage) {
+                                    containerHeight /= 2;
+                                }
+                
+                                designContainer.style.width = `${containerWidth}px`;
+                                designContainer.style.height = `${containerHeight}px`;
+                
+                                const page_mm_width = (orientation === 'portrait') ? 215.9 : 279.4;
+                                px_per_mm = containerWidth / page_mm_width;
+                
+                                const margin_mm = parseFloat(marginInput.value) || 0;
+                                const margin_px = margin_mm * px_per_mm;
+                                designContainer.style.padding = `${margin_px}px`;
+                            }
+                
+                            function createGrid() {
+                                const cols = parseInt(baseColsInput.value, 10) || 1;
+                                const rows = parseInt(baseRowsInput.value, 10) || 1;
+                                
+                                gridState = [];
+                                selectedCellIds.clear();
+                
+                                for (let r = 0; r < rows; r++) {
+                                    for (let c = 0; c < cols; c++) {
+                                        gridState.push({
+                                            id: r * cols + c, col: c, row: r, colSpan: 1, rowSpan: 1,
+                                            visible: true, merged: false, mergedInto: null,
+                                            image: { file: null, url: null, rotation: 0 }
+                                        });
+                                    }
+                                }
+                                renderGrid();
+                                updateActionButtons();
+                            }
+                
+                            function renderGrid() {
+                                const cols = parseInt(baseColsInput.value, 10) || 1;
+                                const rows = parseInt(baseRowsInput.value, 10) || 1;
+                                const spacing_mm = parseFloat(spacingInput.value) || 0;
+                                const spacing_px = spacing_mm * px_per_mm;
+                
+                                gridContainer.innerHTML = '';
+                                gridContainer.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+                                gridContainer.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
+                                gridContainer.style.gap = `${spacing_px}px`;
+                
+                                gridState.forEach(cellState => {
+                                    if (!cellState.visible) return;
+                
+                                    const cell = document.createElement('div');
+                                    cell.classList.add('grid-cell');
+                                    cell.dataset.id = cellState.id;
+                                    
+                                    cell.style.gridColumn = `span ${cellState.colSpan}`;
+                                    cell.style.gridRow = `span ${cellState.rowSpan}`;
+                
+                                    const imageContainer = document.createElement('div');
+                                    imageContainer.classList.add('image-container');
+                
+                                    if (cellState.image.url) {
+                                        imageContainer.style.backgroundImage = `url(${cellState.image.url})`;
+                                        imageContainer.style.transform = `rotate(${cellState.image.rotation}deg)`;
+                                    }
+                
+                                    if (selectedCellIds.has(cellState.id)) {
+                                        cell.classList.add('selected');
+                                    }
+                                    
+                                    cell.appendChild(imageContainer);
+                                    gridContainer.appendChild(cell);
+                                });
+                            }
+                
+                            // --- LÓGICA DE ACCIONES (CELDA) ---
+                
+                            function handleCellClick(e) {
+                                const cell = e.target.closest('.grid-cell');
+                                if (!cell) return;
+                
+                                const id = parseInt(cell.dataset.id, 10);
+                                const isCtrlPressed = e.ctrlKey || e.metaKey;
+                
+                                if (isCtrlPressed) {
+                                    if (selectedCellIds.has(id)) selectedCellIds.delete(id);
+                                    else selectedCellIds.add(id);
+                                } else {
+                                    selectedCellIds.clear();
+                                    openImageModal(id);
+                                }
+                                
+                                renderGrid();
+                                updateActionButtons();
+                            }
+                
+                            function mergeCells() {
+                                if (selectedCellIds.size < 2) return;
+                                const selectedCells = Array.from(selectedCellIds).map(id => gridState[id]);
+                                const minRow = Math.min(...selectedCells.map(c => c.row));
+                                const maxRow = Math.max(...selectedCells.map(c => c.row));
+                                const minCol = Math.min(...selectedCells.map(c => c.col));
+                                const maxCol = Math.max(...selectedCells.map(c => c.col));
+                                const colSpan = maxCol - minCol + 1;
+                                const rowSpan = maxRow - minRow + 1;
+                
+                                if (selectedCells.length !== colSpan * rowSpan) {
+                                    alert('La selección debe formar un rectángulo perfecto.');
+                                    return;
+                                }
+                
+                                const anchorCell = gridState.find(c => c.row === minRow && c.col === minCol);
+                                anchorCell.colSpan = colSpan;
+                                anchorCell.rowSpan = rowSpan;
+                                anchorCell.merged = true;
+                
+                                selectedCells.forEach(cell => {
+                                    if (cell.id !== anchorCell.id) {
+                                        cell.visible = false;
+                                        cell.mergedInto = anchorCell.id;
+                                    }
+                                });
+                
+                                selectedCellIds.clear();
+                                selectedCellIds.add(anchorCell.id);
+                                renderGrid();
+                                updateActionButtons();
+                            }
+                
+                            function splitCell() {
+                                if (selectedCellIds.size !== 1) return;
+                                const anchorId = selectedCellIds.values().next().value;
+                                const anchorCell = gridState[anchorId];
+                                if (!anchorCell || !anchorCell.merged) return;
+                
+                                gridState.forEach(cell => {
+                                    if (cell.mergedInto === anchorId) {
+                                        cell.visible = true;
+                                        cell.mergedInto = null;
+                                    }
+                                });
+                
+                                anchorCell.colSpan = 1;
+                                anchorCell.rowSpan = 1;
+                                anchorCell.merged = false;
+                
+                                selectedCellIds.clear();
+                                renderGrid();
+                                updateActionButtons();
+                            }
+                
+                            // --- LÓGICA DEL MODAL DE IMAGEN ---
+                
+                            function openImageModal(id) {
+                                activeCellId = id;
+                                const cellState = gridState[activeCellId];
+                                currentRotation = cellState.image.rotation;
+                                currentImageFile = cellState.image.file;
+                                imagePreview.src = cellState.image.url || '';
+                                imagePreview.style.transform = `rotate(${currentRotation}deg)`;
+                                imageInput.value = '';
+                                imageModal.style.display = 'flex';
+                            }
+                
+                            function closeModal() {
+                                imageModal.style.display = 'none';
+                                activeCellId = null;
+                            }
+                
+                            function handleImageUpload(e) {
+                                const file = e.target.files[0];
+                                if (file) {
+                                    currentImageFile = file;
+                                    imagePreview.src = URL.createObjectURL(file);
+                                }
+                            }
+                
+                            function rotateImage() {
+                                currentRotation = (currentRotation + 90) % 360;
+                                imagePreview.style.transform = `rotate(${currentRotation}deg)`;
+                            }
+                
+                            function removeImage() {
+                                currentImageFile = null;
+                                currentRotation = 0;
+                                imagePreview.src = '';
+                                imagePreview.style.transform = 'rotate(0deg)';
+                            }
+                
+                            function saveImage() {
+                                const cellState = gridState[activeCellId];
+                                cellState.image.file = currentImageFile;
+                                cellState.image.rotation = currentRotation;
+                                cellState.image.url = currentImageFile ? URL.createObjectURL(currentImageFile) : null;
+                                renderGrid();
+                                closeModal();
+                            }
+                
+                            // --- FUNCIONES DE UTILIDAD Y UI ---
+                
+                            function updateActionButtons() {
+                                const selectedCount = selectedCellIds.size;
+                                mergeBtn.disabled = selectedCount < 2;
+                                splitBtn.disabled = true;
+                
+                                if (selectedCount === 1) {
+                                    const selectedCell = gridState[selectedCellIds.values().next().value];
+                                    if (selectedCell && selectedCell.merged) {
+                                        splitBtn.disabled = false;
+                                    }
+                                }
+                            }
+                            
+                            // --- EVENT LISTENERS ---
+                            orientationSelect.addEventListener('change', () => { updateDesignArea(); renderGrid(); });
+                            useHalfPageCheckbox.addEventListener('change', () => { updateDesignArea(); renderGrid(); });
+                            marginInput.addEventListener('input', () => { updateDesignArea(); renderGrid(); });
+                            spacingInput.addEventListener('input', renderGrid);
+                            window.addEventListener('resize', () => { updateDesignArea(); renderGrid(); });
+                            createGridBtn.addEventListener('click', createGrid);
+                            gridContainer.addEventListener('click', handleCellClick);
+                            mergeBtn.addEventListener('click', mergeCells);
+                            splitBtn.addEventListener('click', splitCell);
+                            generatePdfBtn.addEventListener('click', generatePdf);
+                            
+                            // Modal listeners
+                            imageInput.addEventListener('change', handleImageUpload);
+                            rotateBtn.addEventListener('click', rotateImage);
+                            removeBtn.addEventListener('click', removeImage);
+                            saveBtn.addEventListener('click', saveImage);
+                            cancelBtn.addEventListener('click', closeModal);
+                
+                            // --- INICIALIZACIÓN ---
+                            updateDesignArea();
+                            createGrid();
+                        });
+                    </script>
+                </body>
+                </html>

@@ -1,5 +1,13 @@
 const { jsPDF } = require('jspdf');
 
+// Constantes de tamaño de página en puntos (72 dpi)
+const LETTER_WIDTH_PT = 612;
+const LETTER_HEIGHT_PT = 792;
+
+// Funciones de conversión de unidades
+const ptToMm = (pt) => pt * 0.352778;
+const mmToPt = (mm) => mm / 0.352778;
+
 // Función para obtener dimensiones REALES de la imagen
 function getImageDimensions(buffer) {
   return new Promise((resolve) => {
@@ -61,6 +69,10 @@ async function processUploadedImages(files) {
 }
 
 module.exports = {
+  LETTER_WIDTH_PT,
+  LETTER_HEIGHT_PT,
+  ptToMm,
+  mmToPt,
   getImageDimensions,
   createPDF,
   getPageDimensions,
