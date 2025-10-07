@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const { PDFDocument, rgb, degrees } = require('pdf-lib');
 const sharp = require('sharp');
-const { LETTER_WIDTH_PT, LETTER_HEIGHT_PT, ptToMm, mmToPt } = require('./common');
+const { LETTER_WIDTH_PT, LETTER_HEIGHT_PT, LEGAL_WIDTH_PT, LEGAL_HEIGHT_PT, ptToMm, mmToPt } = require('./common');
 
 const router = express.Router();
 // Usamos multer en memoria para no escribir archivos temporales innecesariamente
@@ -25,10 +25,18 @@ router.post('/generate-layout', upload.array('images'), async (req, res) => {
         const page = pdfDoc.addPage();
 
         // Configurar tamaño y orientación de la página
+        const pageSize = pageSettings.pageSize || 'letter'; // Default a 'letter'
+        const pageDimensions = {
+            letter: { width: LETTER_WIDTH_PT, height: LETTER_HEIGHT_PT },
+            legal: { width: LEGAL_WIDTH_PT, height: LEGAL_HEIGHT_PT }
+        };
+
+        const { width, height } = pageDimensions[pageSize];
+
         if (pageSettings.orientation === 'landscape') {
-            page.setSize(LETTER_HEIGHT_PT, LETTER_WIDTH_PT);
+            page.setSize(height, width);
         } else {
-            page.setSize(LETTER_WIDTH_PT, LETTER_HEIGHT_PT);
+            page.setSize(width, height);
         }
 
         const { width: pageWidth, height: pageHeight } = page.getSize();

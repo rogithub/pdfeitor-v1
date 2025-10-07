@@ -107,6 +107,13 @@
                                 </select>
                             </div>
                             <div style="margin-top: 15px;">
+                                <label for="pageSize">Tamaño de Página</label>
+                                <select id="pageSize" name="pageSize">
+                                    <option value="letter" selected>Carta</option>
+                                    <option value="legal">Oficio</option>
+                                </select>
+                            </div>
+                            <div style="margin-top: 15px;">
                                 <label for="margin">Margen de Página (mm)</label>
                                 <input type="number" id="margin" name="margin" value="10" min="0">
                             </div>
@@ -180,6 +187,7 @@
                         document.addEventListener('DOMContentLoaded', () => {
                             // --- ELEMENTOS DEL DOM ---
                             const orientationSelect = document.getElementById('orientation');
+                            const pageSizeSelect = document.getElementById('pageSize');
                             const useHalfPageCheckbox = document.getElementById('useHalfPage');
                             const createGridBtn = document.getElementById('create-grid-btn');
                             const baseColsInput = document.getElementById('base-cols');
@@ -201,7 +209,10 @@
                             const saveBtn = document.getElementById('save-image-btn');
                             const cancelBtn = document.getElementById('cancel-modal-btn');
                 
-                            const LETTER_RATIO = 8.5 / 11;
+                            const PAPER_RATIOS = {
+                                letter: 8.5 / 11,
+                                legal: 8.5 / 14
+                            };
                             let gridState = [];
                             let selectedCellIds = new Set();
                             let activeCellId = null;
@@ -244,6 +255,7 @@
                                 const layoutData = {
                                     pageSettings: {
                                         orientation: orientationSelect.value,
+                                        pageSize: pageSizeSelect.value,
                                         useHalfPage: useHalfPageCheckbox.checked,
                                         margin: parseFloat(marginInput.value),
                                         spacing: parseFloat(spacingInput.value),
@@ -287,6 +299,7 @@
                 
                             function updateDesignArea() {
                                 const orientation = orientationSelect.value;
+                                const pageSize = pageSizeSelect.value;
                                 const useHalfPage = useHalfPageCheckbox.checked;
                                 const mainContent = document.getElementById('main-content');
                                 
@@ -294,20 +307,21 @@
                                 const availableHeight = mainContent.clientHeight * 0.95;
                 
                                 let containerWidth, containerHeight;
+                                const ratio = PAPER_RATIOS[pageSize];
                 
                                 if (orientation === 'portrait') {
                                     containerHeight = availableHeight;
-                                    containerWidth = containerHeight * LETTER_RATIO;
+                                    containerWidth = containerHeight * ratio;
                                     if (containerWidth > availableWidth) {
                                         containerWidth = availableWidth;
-                                        containerHeight = containerWidth / LETTER_RATIO;
+                                        containerHeight = containerWidth / ratio;
                                     }
                                 } else { // landscape
                                     containerWidth = availableWidth;
-                                    containerHeight = containerWidth * LETTER_RATIO;
+                                    containerHeight = containerWidth * ratio;
                                     if (containerHeight > availableHeight) {
                                         containerHeight = availableHeight;
-                                        containerWidth = containerHeight / LETTER_RATIO;
+                                        containerWidth = containerHeight / ratio;
                                     }
                                 }
                 
@@ -318,7 +332,7 @@
                                 designContainer.style.width = `${containerWidth}px`;
                                 designContainer.style.height = `${containerHeight}px`;
                 
-                                const page_mm_width = (orientation === 'portrait') ? 215.9 : 279.4;
+                                const page_mm_width = 215.9; // Ancho es el mismo para Carta y Oficio
                                 px_per_mm = containerWidth / page_mm_width;
                 
                                 const margin_mm = parseFloat(marginInput.value) || 0;
@@ -524,6 +538,7 @@
                             
                             // --- EVENT LISTENERS ---
                             orientationSelect.addEventListener('change', () => { updateDesignArea(); renderGrid(); });
+                            pageSizeSelect.addEventListener('change', () => { updateDesignArea(); renderGrid(); });
                             useHalfPageCheckbox.addEventListener('change', () => { updateDesignArea(); renderGrid(); });
                             marginInput.addEventListener('input', () => { updateDesignArea(); renderGrid(); });
                             spacingInput.addEventListener('input', renderGrid);
