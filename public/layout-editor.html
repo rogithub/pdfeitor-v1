@@ -94,25 +94,24 @@
                 </head>
                 <body>
                     <aside id="controls">
-                        <h1>Editor de Layouts</h1>
-                
+                        <h1>Editor de Layouts</h1>                
                         <!-- Sección 1: Configuración de la página y márgenes -->
-                        <div class="control-group">
+                        <div class="control-group">                            
                             <h3>1. Configuración de Página</h3>
-                            <div>
-                                <label for="orientation">Orientación</label>
-                                <select id="orientation" name="orientation">
-                                    <option value="portrait" selected>Vertical</option>
-                                    <option value="landscape">Horizontal</option>
-                                </select>
-                            </div>
                             <div style="margin-top: 15px;">
                                 <label for="pageSize">Tamaño de Página</label>
                                 <select id="pageSize" name="pageSize">
                                     <option value="letter" selected>Carta</option>
                                     <option value="legal">Oficio</option>
                                 </select>
-                            </div>
+                            </div>                            
+                            <div>
+                                <label for="orientation">Orientación</label>
+                                <select id="orientation" name="orientation">
+                                    <option value="portrait" selected>Vertical</option>
+                                    <option value="landscape">Horizontal</option>
+                                </select>
+                            </div>                            
                             <div style="margin-top: 15px;">
                                 <label for="margin">Margen de Página (mm)</label>
                                 <input type="number" id="margin" name="margin" value="10" min="0">
