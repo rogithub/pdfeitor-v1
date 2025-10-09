@@ -495,7 +495,28 @@
                                 const file = e.target.files[0];
                                 if (file) {
                                     currentImageFile = file;
-                                    imagePreview.src = URL.createObjectURL(file);
+                                    const imageUrl = URL.createObjectURL(file);
+                                    imagePreview.src = imageUrl;
+
+                                    // Lógica de auto-rotación
+                                    const img = new Image();
+                                    img.onload = () => {
+                                        const cellElement = gridContainer.querySelector(`[data-id="${activeCellId}"]`);
+                                        if (!cellElement) return;
+
+                                        const imageIsLandscape = img.naturalWidth > img.naturalHeight;
+                                        const cellIsLandscape = cellElement.clientWidth > cellElement.clientHeight;
+
+                                        // Si las orientaciones no coinciden, rotar la imagen
+                                        if (imageIsLandscape !== cellIsLandscape) {
+                                            currentRotation = 90;
+                                        } else {
+                                            currentRotation = 0; // Si coinciden, asegurar que no hay rotación previa
+                                        }
+                                        imagePreview.style.transform = `rotate(${currentRotation}deg)`;
+                                        URL.revokeObjectURL(imageUrl); // Limpiar el objeto URL
+                                    };
+                                    img.src = imageUrl;
                                 }
                             }
                 
