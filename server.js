@@ -9,6 +9,7 @@ const simetricoRoutes = require('./routes/simetrico');
 const repetidorSimetricoRoutes = require('./routes/repetidor-simetrico'); // Nueva ruta
 const layoutEditorRoutes = require('./routes/layout-editor'); // Ruta para el editor de layouts
 const multiPaginaRoutes = require('./routes/multi-pagina'); // Ruta para el creador multi-página
+const plantillaEditorRoutes = require('./routes/plantilla-editor'); // Ruta para el editor de plantillas
 const common = require('./routes/common');
 
 const app = express();
@@ -57,12 +58,17 @@ app.get('/multi-pagina', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'multi-pagina.html'));
 });
 
+app.get('/plantilla-editor', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'plantilla-editor.html'));
+});
+
 // Configurar rutas
 app.post('/generate-collage', upload.array('images', 12), collageRoutes.generateCollage);
 app.post('/generate-repetidor', upload.single('image'), repetidorRoutes.generateRepetidor);
 app.post('/generate-simetrico', upload.array('images', 12), simetricoRoutes.generateSimetrico);
-app.post('/generate-repetidor-simetrico', upload.single('image'), repetidorSimetricoRoutes.generateRepetidorSimetrico); // Nueva ruta
-app.post('/generate-multi-pagina', upload.array('images', 50), multiPaginaRoutes.generateMultiPagina); // Límite aumentado a 50
+app.post('/generate-repetidor-simetrico', upload.single('image'), repetidorSimetricoRoutes.generateRepetidorSimetrico);
+app.post('/generate-multi-pagina', upload.array('images', 50), multiPaginaRoutes.generateMultiPagina);
+app.post('/generate-plantilla', upload.array('images', 100), plantillaEditorRoutes.generatePlantilla); // Límite alto
 
 // Usar el router para el editor de layouts
 app.use('/', layoutEditorRoutes);

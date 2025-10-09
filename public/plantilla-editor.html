@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pdfeitor V1: Editor de Plantillas Multi-página</title>
+    <style>
+        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; }
+        #controls { width: 350px; padding: 20px; background-color: #f8f9fa; overflow-y: auto; border-right: 1px solid #dee2e6; display: flex; flex-direction: column; }
+        #main-content { flex-grow: 1; padding: 20px; display: flex; background-color: #e9ecef; gap: 20px; }
+        #preview-area { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        #page-thumbnails { width: 150px; overflow-y: auto; background: #fff; border-left: 1px solid #dee2e6; padding: 10px; }
+        #design-container { border: 2px dashed #ccc; background-color: white; box-sizing: border-box; }
+        .control-group { margin-bottom: 15px; border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #fff; }
+        .control-group h3 { margin-top: 0; padding-bottom: 10px; border-bottom: 1px solid #eee; font-size: 1.1em; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select, button { width: 100%; padding: 8px; box-sizing: border-box; }
+        button { background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; margin-top: 10px; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        #grid-container { display: grid; width: 100%; height: 100%; }
+        .grid-cell { border: 1px solid #ddd; background-color: #f0f0f0; cursor: pointer; overflow: hidden; }
+        .image-container { width: 100%; height: 100%; background-size: contain; background-repeat: no-repeat; background-position: center; }
+        .grid-cell.selected { background-color: #a0c4ff; border-color: #0056b3; }
+        .thumbnail { border: 1px solid #ccc; margin-bottom: 10px; cursor: pointer; position: relative; }
+        .thumbnail img { max-width: 100%; display: block; }
+        .thumbnail.selected { border-color: #007bff; border-width: 3px; padding: 2px; }
+        .thumb-page-number { position: absolute; bottom: 2px; right: 5px; font-size: 0.8em; background: rgba(0,0,0,0.6); color: white; padding: 1px 4px; border-radius: 3px; }
+        #image-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .modal-content { background-color: #fefefe; margin: auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 10px; }
+        #image-preview-container { width: 100%; height: 250px; border: 1px dashed #ccc; margin-top: 10px; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        #image-preview { max-width: 100%; max-height: 100%; }
+        .modal-actions { display: flex; justify-content: space-between; margin-top: 15px; }
+    </style>
+</head>
+<body>
+    <aside id="controls">
+        <h1>Editor de Plantillas</h1>
+        
+        <div class="control-group">
+            <h3>1. Configuración Global</h3>
+            <label for="pageSize">Tamaño de Página</label>
+            <select id="pageSize"><option value="letter">Carta</option><option value="legal">Oficio</option></select>
+            <label for="orientation" style="margin-top: 10px;">Orientación</label>
+            <select id="orientation"><option value="portrait">Vertical</option><option value="landscape">Horizontal</option></select>
+            <label for="margin" style="margin-top: 10px;">Margen (mm)</label>
+            <input type="number" id="margin" value="10" min="0">
+        </div>
+
+        <div class="control-group">
+            <h3>2. Plantilla de Cuadrícula</h3>
+            <label for="base-cols">Columnas</label>
+            <input type="number" id="base-cols" value="2" min="1">
+            <label for="base-rows" style="margin-top: 10px;">Filas</label>
+            <input type="number" id="base-rows" value="2" min="1">
+            <label for="spacing" style="margin-top: 10px;">Espaciado (mm)</label>
+            <input type="number" id="spacing" value="5" min="0">
+            <button id="apply-template-btn">Aplicar Plantilla</button>
+        </div>
+
+        <div class="control-group">
+            <h3>3. Cargar Imágenes</h3>
+            <input type="file" id="image-input-batch" accept="image/*" multiple>
+            <button id="clear-images-btn" style="background-color: #dc3545; margin-top: 5px;">Limpiar Todo</button>
+        </div>
+        
+        <div class="control-group" id="cell-actions-group" style="display: none;">
+            <h3>4. Acciones de Celda</h3>
+            <p style="font-size: 0.85em; color: #6c757d; margin-top: 0;">(Mantén <b>Ctrl</b> para seleccionar celdas en la página activa)</p>
+            <button id="merge-cells-btn" disabled>Combinar Celdas</button>
+            <button id="split-cells-btn" disabled style="margin-top: 5px; background-color: #ffc107;">Separar Celda</button>
+        </div>
+
+        <div class="control-group" style="margin-top: auto;">
+            <h3>5. Finalizar</h3>
+            <button id="generate-pdf-btn" style="background-color: #28a745;" disabled>Generar PDF</button>
+        </div>
+    </aside>
+
+    <main id="main-content">
+        <div id="preview-area">
+            <h2 id="page-indicator" style="text-align: center; margin-bottom: 10px;">Página 1</h2>
+            <div id="design-container">
+                <div id="grid-container"></div>
+            </div>
+        </div>
+        <aside id="page-thumbnails">
+            <p style="text-align: center; color: #6c757d;">Carga imágenes para ver las páginas.</p>
+        </aside>
+    </main>
+
+    <div id="image-modal">
+        <div class="modal-content">
+            <h2>Editar Celda</h2>
+            <label for="image-input-single">Seleccionar Imagen:</label>
+            <input type="file" id="image-input-single" accept="image/*">
+            <div id="image-preview-container"><img id="image-preview" src=""></div>
+            <div class="modal-actions">
+                <button id="rotate-image-btn">Girar 90°</button>
+                <button id="remove-image-btn" style="background-color: #dc3545;">Quitar Imagen</button>
+            </div>
+            <div class="modal-actions">
+                <button id="cancel-modal-btn" style="background-color: #6c757d;">Cancelar</button>
+                <button id="save-image-btn" style="background-color: #28a745;">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- STATE MANAGEMENT ---
+            let state = {
+                pageSettings: { pageSize: 'letter', orientation: 'portrait', margin: 10 },
+                template: { baseCols: 2, baseRows: 2, spacing: 5 },
+                pages: [],
+                imageFiles: [],
+                activePageIndex: 0,
+                selectedCellIds: new Set(),
+                activeModalCellId: null,
+                currentModalRotation: 0,
+                currentModalFile: null
+            };
+
+            // --- DOM ELEMENTS ---
+            const pageSizeSelect = document.getElementById('pageSize');
+            const orientationSelect = document.getElementById('orientation');
+            const marginInput = document.getElementById('margin');
+            const baseColsInput = document.getElementById('base-cols');
+            const baseRowsInput = document.getElementById('base-rows');
+            const spacingInput = document.getElementById('spacing');
+            const applyTemplateBtn = document.getElementById('apply-template-btn');
+            const imageInputBatch = document.getElementById('image-input-batch');
+            const clearImagesBtn = document.getElementById('clear-images-btn');
+            const cellActionsGroup = document.getElementById('cell-actions-group');
+            const mergeBtn = document.getElementById('merge-cells-btn');
+            const splitBtn = document.getElementById('split-cells-btn');
+            const generatePdfBtn = document.getElementById('generate-pdf-btn');
+            const pageIndicator = document.getElementById('page-indicator');
+            const designContainer = document.getElementById('design-container');
+            const gridContainer = document.getElementById('grid-container');
+            const thumbnailsContainer = document.getElementById('page-thumbnails');
+            // Modal elements
+            const imageModal = document.getElementById('image-modal');
+            const imageInputSingle = document.getElementById('image-input-single');
+            const imagePreview = document.getElementById('image-preview');
+            const rotateBtn = document.getElementById('rotate-image-btn');
+            const removeBtn = document.getElementById('remove-image-btn');
+            const saveBtn = document.getElementById('save-image-btn');
+            const cancelBtn = document.getElementById('cancel-modal-btn');
+
+            const PAPER_RATIOS = { letter: 8.5 / 11, legal: 8.5 / 14 };
+            let px_per_mm = 1;
+
+            // --- CORE LOGIC ---
+
+            function createCellState(id, c, r) {
+                return { id, col: c, row: r, colSpan: 1, rowSpan: 1, visible: true, merged: false, mergedInto: null, image: { file: null, url: null, rotation: 0, name: null } };
+            }
+
+            function createPageFromTemplate() {
+                const { baseCols, baseRows } = state.template;
+                const newPage = { baseCols, baseRows, cells: [] };
+                for (let r = 0; r < baseRows; r++) {
+                    for (let c = 0; c < baseCols; c++) {
+                        const id = r * baseCols + c;
+                        newPage.cells.push(createCellState(id, c, r));
+                    }
+                }
+                return newPage;
+            }
+
+            function applyTemplate() {
+                state.template.baseCols = parseInt(baseColsInput.value, 10);
+                state.template.baseRows = parseInt(baseRowsInput.value, 10);
+                state.template.spacing = parseFloat(spacingInput.value);
+                
+                distributeImagesToPages();
+                selectPage(0);
+            }
+
+            function handleBatchImageUpload(e) {
+                state.imageFiles = Array.from(e.target.files);
+                distributeImagesToPages();
+                selectPage(0);
+            }
+
+            function distributeImagesToPages() {
+                state.pages = [];
+                if (state.imageFiles.length === 0) {
+                    state.pages.push(createPageFromTemplate());
+                    render();
+                    return;
+                }
+
+                const cellsPerPage = state.template.baseCols * state.template.baseRows;
+                let imageIndex = 0;
+                while (imageIndex < state.imageFiles.length) {
+                    const newPage = createPageFromTemplate();
+                    newPage.cells.forEach(cell => {
+                        if (imageIndex < state.imageFiles.length) {
+                            const file = state.imageFiles[imageIndex];
+                            cell.image = { file, url: URL.createObjectURL(file), rotation: 0, name: file.name };
+                            imageIndex++;
+                        }
+                    });
+                    state.pages.push(newPage);
+                }
+                // Si no hay imágenes, asegurarse de que haya al menos una página en blanco
+                if (state.pages.length === 0) {
+                    state.pages.push(createPageFromTemplate());
+                }
+                render();
+            }
+            
+            function clearAll() {
+                state.imageFiles = [];
+                state.pages = [createPageFromTemplate()];
+                selectPage(0);
+            }
+
+            // --- RENDER LOGIC ---
+
+            function render() {
+                updateDesignArea();
+                renderGrid();
+                renderThumbnails();
+                updateControlsState();
+            }
+
+            function renderGrid() {
+                const page = state.pages[state.activePageIndex];
+                if (!page) return;
+
+                const { baseCols, baseRows } = page;
+                const spacing_px = state.template.spacing * px_per_mm;
+
+                gridContainer.innerHTML = '';
+                gridContainer.style.gridTemplateColumns = `repeat(${baseCols}, 1fr)`;
+                gridContainer.style.gridTemplateRows = `repeat(${baseRows}, 1fr)`;
+                gridContainer.style.gap = `${spacing_px}px`;
+
+                page.cells.forEach(cell => {
+                    if (!cell.visible) return;
+                    const cellEl = document.createElement('div');
+                    cellEl.className = 'grid-cell';
+                    cellEl.dataset.id = cell.id;
+                    cellEl.style.gridColumn = `span ${cell.colSpan}`;
+                    cellEl.style.gridRow = `span ${cell.rowSpan}`;
+
+                    const imageContainer = document.createElement('div');
+                    imageContainer.className = 'image-container';
+                    if (cell.image.url) {
+                        imageContainer.style.backgroundImage = `url(${cell.image.url})`;
+                        imageContainer.style.transform = `rotate(${cell.image.rotation}deg)`;
+                    }
+                    if (state.selectedCellIds.has(cell.id)) {
+                        cellEl.classList.add('selected');
+                    }
+                    cellEl.appendChild(imageContainer);
+                    gridContainer.appendChild(cellEl);
+                });
+            }
+
+            function renderThumbnails() {
+                thumbnailsContainer.innerHTML = '';
+                if (state.pages.length === 0 || (state.pages.length === 1 && state.imageFiles.length === 0)) {
+                     thumbnailsContainer.innerHTML = '<p style="text-align: center; color: #6c757d;">Carga imágenes para ver las páginas.</p>';
+                     return;
+                }
+
+                state.pages.forEach((page, index) => {
+                    const thumb = document.createElement('div');
+                    thumb.className = 'thumbnail';
+                    thumb.dataset.index = index;
+                    if (index === state.activePageIndex) thumb.classList.add('selected');
+
+                    const img = document.createElement('img');
+                    // Usar la primera imagen de la página como miniatura
+                    const firstImageCell = page.cells.find(c => c.image.url);
+                    img.src = firstImageCell ? firstImageCell.image.url : 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; // Placeholder
+                    
+                    const pageNum = document.createElement('span');
+                    pageNum.className = 'thumb-page-number';
+                    pageNum.textContent = index + 1;
+
+                    thumb.appendChild(img);
+                    thumb.appendChild(pageNum);
+                    thumbnailsContainer.appendChild(thumb);
+                });
+            }
+
+            function selectPage(index) {
+                if (index >= 0 && index < state.pages.length) {
+                    state.activePageIndex = index;
+                    state.selectedCellIds.clear();
+                    pageIndicator.textContent = `Página ${index + 1}`;
+                    render();
+                }
+            }
+
+            // --- UI & CONTROLS UPDATE ---
+
+            function updateDesignArea() {
+                const { orientation, pageSize } = state.pageSettings;
+                const mainContent = document.getElementById('preview-area');
+                const availableWidth = mainContent.clientWidth * 0.95;
+                const availableHeight = mainContent.clientHeight * 0.95;
+                let containerWidth, containerHeight;
+                const ratio = PAPER_RATIOS[pageSize];
+
+                if (orientation === 'portrait') {
+                    containerHeight = availableHeight;
+                    containerWidth = containerHeight * ratio;
+                    if (containerWidth > availableWidth) {
+                        containerWidth = availableWidth;
+                        containerHeight = containerWidth / ratio;
+                    }
+                } else {
+                    containerWidth = availableWidth;
+                    containerHeight = containerWidth * ratio;
+                    if (containerHeight > availableHeight) {
+                        containerHeight = availableHeight;
+                        containerWidth = containerHeight / ratio;
+                    }
+                }
+                designContainer.style.width = `${containerWidth}px`;
+                designContainer.style.height = `${containerHeight}px`;
+                const page_mm_width = orientation === 'portrait' ? 215.9 : 279.4;
+                px_per_mm = containerWidth / page_mm_width;
+            }
+
+            function updateControlsState() {
+                generatePdfBtn.disabled = state.imageFiles.length === 0;
+                cellActionsGroup.style.display = state.pages.length > 0 ? 'block' : 'none';
+                
+                const selectedCount = state.selectedCellIds.size;
+                mergeBtn.disabled = selectedCount < 2;
+                splitBtn.disabled = true;
+                if (selectedCount === 1) {
+                    const page = state.pages[state.activePageIndex];
+                    const selectedCell = page.cells.find(c => c.id === state.selectedCellIds.values().next().value);
+                    if (selectedCell && selectedCell.merged) {
+                        splitBtn.disabled = false;
+                    }
+                }
+            }
+            
+            function updatePageSettings() {
+                state.pageSettings.pageSize = pageSizeSelect.value;
+                state.pageSettings.orientation = orientationSelect.value;
+                state.pageSettings.margin = parseFloat(marginInput.value);
+                render();
+            }
+
+            // --- CELL & MODAL ACTIONS ---
+
+            function handleCellClick(e) {
+                const cell = e.target.closest('.grid-cell');
+                if (!cell) return;
+                const id = parseInt(cell.dataset.id, 10);
+                if (e.ctrlKey || e.metaKey) {
+                    state.selectedCellIds.has(id) ? state.selectedCellIds.delete(id) : state.selectedCellIds.add(id);
+                } else {
+                    state.selectedCellIds.clear();
+                    openImageModal(id);
+                }
+                renderGrid();
+                updateControlsState();
+            }
+
+            function mergeCells() {
+                const page = state.pages[state.activePageIndex];
+                const selectedCells = Array.from(state.selectedCellIds).map(id => page.cells[id]);
+                const minRow = Math.min(...selectedCells.map(c => c.row));
+                const maxRow = Math.max(...selectedCells.map(c => c.row + c.rowSpan - 1));
+                const minCol = Math.min(...selectedCells.map(c => c.col));
+                const maxCol = Math.max(...selectedCells.map(c => c.col + c.colSpan - 1));
+                const colSpan = maxCol - minCol + 1;
+                const rowSpan = maxRow - minRow + 1;
+
+                // Validar que la selección sea un rectángulo
+                let totalCellsInRect = 0;
+                page.cells.forEach(c => {
+                    if(c.row >= minRow && c.row <= maxRow && c.col >= minCol && c.col <= maxCol) {
+                        totalCellsInRect++;
+                    }
+                });
+                if (selectedCells.length !== totalCellsInRect) {
+                    alert('La selección debe formar un rectángulo perfecto sin celdas combinadas previamente.');
+                    return;
+                }
+
+                const anchorCell = page.cells.find(c => c.row === minRow && c.col === minCol);
+                anchorCell.colSpan = colSpan;
+                anchorCell.rowSpan = rowSpan;
+                anchorCell.merged = true;
+
+                selectedCells.forEach(cell => {
+                    if (cell.id !== anchorCell.id) {
+                        cell.visible = false;
+                        cell.mergedInto = anchorCell.id;
+                    }
+                });
+                state.selectedCellIds.clear();
+                state.selectedCellIds.add(anchorCell.id);
+                render();
+            }
+
+            function splitCell() {
+                const page = state.pages[state.activePageIndex];
+                const anchorId = state.selectedCellIds.values().next().value;
+                const anchorCell = page.cells.find(c => c.id === anchorId);
+                if (!anchorCell || !anchorCell.merged) return;
+
+                page.cells.forEach(cell => {
+                    if (cell.mergedInto === anchorId) {
+                        cell.visible = true;
+                        cell.mergedInto = null;
+                    }
+                });
+                anchorCell.colSpan = 1;
+                anchorCell.rowSpan = 1;
+                anchorCell.merged = false;
+                state.selectedCellIds.clear();
+                render();
+            }
+
+            function openImageModal(cellId) {
+                state.activeModalCellId = cellId;
+                const cell = state.pages[state.activePageIndex].cells.find(c => c.id === cellId);
+                state.currentModalRotation = cell.image.rotation;
+                state.currentModalFile = cell.image.file;
+                imagePreview.src = cell.image.url || '';
+                imagePreview.style.transform = `rotate(${state.currentModalRotation}deg)`;
+                imageInputSingle.value = '';
+                imageModal.style.display = 'flex';
+            }
+
+            function closeModal() {
+                imageModal.style.display = 'none';
+            }
+
+            function saveImage() {
+                const cell = state.pages[state.activePageIndex].cells.find(c => c.id === state.activeModalCellId);
+                cell.image.file = state.currentModalFile;
+                cell.image.rotation = state.currentModalRotation;
+                cell.image.url = state.currentModalFile ? URL.createObjectURL(state.currentModalFile) : null;
+                cell.image.name = state.currentModalFile ? state.currentModalFile.name : null;
+                render();
+                closeModal();
+            }
+
+            // --- PDF GENERATION ---
+            async function generatePdf() {
+                generatePdfBtn.disabled = true;
+                generatePdfBtn.textContent = 'Generando...';
+
+                const formData = new FormData();
+                const config = {
+                    pageSettings: state.pageSettings,
+                    pages: []
+                };
+
+                // Preparar la configuración y recolectar los archivos
+                state.pages.forEach((page, pageIndex) => {
+                    const pageData = { baseCols: page.baseCols, baseRows: page.baseRows, cells: [] };
+                    page.cells.forEach(cell => {
+                        const cellData = { ...cell, image: { rotation: cell.image.rotation, name: null } };
+                        if (cell.image.file) {
+                            const uniqueName = `p${pageIndex}_c${cell.id}_${cell.image.file.name}`;
+                            cellData.image.name = uniqueName;
+                            // Renombrar el archivo antes de añadirlo para que el backend lo identifique
+                            const renamedFile = new File([cell.image.file], uniqueName, { type: cell.image.file.type });
+                            formData.append('images', renamedFile);
+                        }
+                        pageData.cells.push(cellData);
+                    });
+                    config.pages.push(pageData);
+                });
+
+                formData.append('config', JSON.stringify(config));
+
+                try {
+                    const response = await fetch('/generate-plantilla', { method: 'POST', body: formData });
+                    if (!response.ok) throw new Error(`Error del servidor: ${response.statusText}`);
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'documento_plantilla.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                } catch (error) {
+                    console.error('Error al generar PDF:', error);
+                    alert('Hubo un error al generar el PDF.');
+                } finally {
+                    generatePdfBtn.disabled = false;
+                    generatePdfBtn.textContent = 'Generar PDF';
+                }
+            }
+
+            // --- EVENT LISTENERS ---
+            pageSizeSelect.addEventListener('change', updatePageSettings);
+            orientationSelect.addEventListener('change', updatePageSettings);
+            marginInput.addEventListener('input', updatePageSettings);
+            window.addEventListener('resize', render);
+            applyTemplateBtn.addEventListener('click', applyTemplate);
+            imageInputBatch.addEventListener('change', handleBatchImageUpload);
+            clearImagesBtn.addEventListener('click', clearAll);
+            gridContainer.addEventListener('click', handleCellClick);
+            thumbnailsContainer.addEventListener('click', (e) => {
+                const thumb = e.target.closest('.thumbnail');
+                if (thumb) selectPage(parseInt(thumb.dataset.index, 10));
+            });
+            mergeBtn.addEventListener('click', mergeCells);
+            splitBtn.addEventListener('click', splitCell);
+            generatePdfBtn.addEventListener('click', generatePdf);
+
+            // Modal listeners
+            cancelBtn.addEventListener('click', closeModal);
+            saveBtn.addEventListener('click', saveImage);
+            imageInputSingle.addEventListener('change', (e) => {
+                if (e.target.files[0]) {
+                    state.currentModalFile = e.target.files[0];
+                    imagePreview.src = URL.createObjectURL(state.currentModalFile);
+                }
+            });
+            rotateBtn.addEventListener('click', () => {
+                state.currentModalRotation = (state.currentModalRotation + 90) % 360;
+                imagePreview.style.transform = `rotate(${state.currentModalRotation}deg)`;
+            });
+            removeBtn.addEventListener('click', () => {
+                state.currentModalFile = null;
+                state.currentModalRotation = 0;
+                imagePreview.src = '';
+                imagePreview.style.transform = 'rotate(0deg)';
+            });
+
+            // --- INITIALIZATION ---
+            applyTemplate(); // Esto crea la primera página vacía y renderiza todo
+        });
+    </script>
+</body>
+</html>
