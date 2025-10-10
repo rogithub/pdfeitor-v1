@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pdfeitor V1: Auto-Repetidor</title>
+    <style>
+        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; }
+        #controls { width: 300px; padding: 20px; background-color: #f8f9fa; overflow-y: auto; border-right: 1px solid #dee2e6;}
+        #main-content { flex-grow: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #e9ecef; }
+        #design-container { 
+            border: 2px dashed #ccc; 
+            background-color: white; 
+            box-sizing: border-box;
+        }
+        .control-group { margin-bottom: 15px; border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #fff; }
+        .control-group h3 {
+            margin-top: 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+            font-size: 1.1em;
+        }
+        .info-text {
+            font-size: 0.85em;
+            color: #6c757d;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select, button { width: 100%; padding: 8px; box-sizing: border-box; }
+        button { background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; margin-top: 10px; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        #grid-container { display: grid; width: 100%; height: 100%; }
+        .grid-cell { 
+            border: 1px solid #ddd; 
+            background-color: #f0f0f0; 
+            overflow: hidden;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+    </style>
+</head>
+<body>
+    <aside id="controls">
+        <h1>Auto-Repetidor</h1>
+        
+        <div class="control-group">                            
+            <h3>1. Configuración de Página</h3>
+            <div style="margin-top: 15px;">
+                <label for="pageSize">Tamaño de Página</label>
+                <select id="pageSize" name="pageSize">
+                    <option value="letter" selected>Carta</option>
+                    <option value="legal">Oficio</option>
+                </select>
+            </div>                            
+            <div>
+                <label for="orientation">Orientación</label>
+                <select id="orientation" name="orientation">
+                    <option value="portrait" selected>Vertical</option>
+                    <option value="landscape">Horizontal</option>
+                </select>
+            </div>                            
+            <div style="margin-top: 15px;">
+                <label for="margin">Margen de Página (mm)</label>
+                <input type="number" id="margin" name="margin" value="10" min="0">
+            </div>
+            <div style="margin-top: 15px;">
+                <input type="checkbox" id="useHalfPage" name="useHalfPage" style="width: auto;">
+                <label for="useHalfPage" style="display: inline-block;">Usar solo media página</label>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>2. Seleccionar Imagen</h3>
+            <label for="image-input">Subir Imagen:</label>
+            <input type="file" id="image-input" accept="image/*">
+            <button id="rotate-image-btn" style="margin-top: 10px;">Girar 90°</button>
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <div>
+                    <label for="image-width">Ancho (mm)</label>
+                    <input type="number" id="image-width" min="1">
+                </div>
+                <div>
+                    <label for="image-height">Alto (mm)</label>
+                    <input type="number" id="image-height" min="1">
+                </div>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <h3>3. Diseño de Cuadrícula</h3>
+             <div style="margin-top: 15px;">
+                <label for="spacing">Espaciado entre Celdas (mm)</label>
+                <input type="number" id="spacing" name="spacing" value="1" min="0">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>4. Finalizar</h3>
+            <button id="generate-pdf-btn" style="background-color: #28a745;" disabled>Generar PDF</button>
+        </div>
+    </aside>
+
+    <main id="main-content">
+        <div id="design-container">
+            <div id="grid-container">
+                <!-- Las celdas se generarán aquí dinámicamente -->
+            </div>
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- STATE MANAGEMENT ---
+            let state = {
+                pageSettings: {
+                    pageSize: 'letter',
+                    orientation: 'portrait',
+                    margin: 10,
+                    useHalfPage: false
+                },
+                image: {
+                    file: null,
+                    widthMM: 50, // Default width
+                    heightMM: 0, // Calculated
+                    rotation: 0,
+                    aspectRatio: 1
+                },
+                grid: {
+                    spacing: 1,
+                    cols: 0,
+                    rows: 0
+                }
+            };
+
+            // --- DOM ELEMENTS ---
+            const pageSizeSelect = document.getElementById('pageSize');
+            const orientationSelect = document.getElementById('orientation');
+            const marginInput = document.getElementById('margin');
+            const useHalfPageCheckbox = document.getElementById('useHalfPage');
+            const imageInput = document.getElementById('image-input');
+            const rotateBtn = document.getElementById('rotate-image-btn');
+            const imageWidthInput = document.getElementById('image-width');
+            const imageHeightInput = document.getElementById('image-height');
+            const spacingInput = document.getElementById('spacing');
+            const generatePdfBtn = document.getElementById('generate-pdf-btn');
+            const designContainer = document.getElementById('design-container');
+            const gridContainer = document.getElementById('grid-container');
+
+            const PAPER_DIMENSIONS_MM = {
+                letter: { width: 215.9, height: 279.4 },
+                legal: { width: 215.9, height: 355.6 }
+            };
+            let px_per_mm = 1;
+
+            // --- CORE LOGIC ---
+
+            function handleImageUpload(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                state.image.file = file;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        state.image.aspectRatio = img.naturalWidth / img.naturalHeight;
+                        state.image.heightMM = state.image.widthMM / state.image.aspectRatio;
+                        imageWidthInput.value = state.image.widthMM.toFixed(2);
+                        imageHeightInput.value = state.image.heightMM.toFixed(2);
+                        generatePdfBtn.disabled = false;
+                        updateAndRender();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+
+            function updateImageDimensions(source) {
+                if (!state.image.file) return;
+                const width = parseFloat(imageWidthInput.value);
+                const height = parseFloat(imageHeightInput.value);
+
+                if (source === 'width' && width > 0) {
+                    state.image.widthMM = width;
+                    state.image.heightMM = width / state.image.aspectRatio;
+                    imageHeightInput.value = state.image.heightMM.toFixed(2);
+                } else if (source === 'height' && height > 0) {
+                    state.image.heightMM = height;
+                    state.image.widthMM = height * state.image.aspectRatio;
+                    imageWidthInput.value = state.image.widthMM.toFixed(2);
+                }
+                updateAndRender();
+            }
+            
+            function rotateImage() {
+                if (!state.image.file) return;
+                state.image.rotation = (state.image.rotation + 90) % 360;
+                // Swap aspect ratio for rotation logic
+                state.image.aspectRatio = 1 / state.image.aspectRatio;
+                // Recalculate height based on new orientation
+                state.image.heightMM = state.image.widthMM / state.image.aspectRatio;
+                imageHeightInput.value = state.image.heightMM.toFixed(2);
+                updateAndRender();
+            }
+
+            function updateAndRender() {
+                updatePageSettings();
+                updateGridCalculations();
+                render();
+            }
+
+            function updatePageSettings() {
+                state.pageSettings.pageSize = pageSizeSelect.value;
+                state.pageSettings.orientation = orientationSelect.value;
+                state.pageSettings.margin = parseFloat(marginInput.value) || 0;
+                state.pageSettings.useHalfPage = useHalfPageCheckbox.checked;
+                state.grid.spacing = parseFloat(spacingInput.value) || 0;
+            }
+
+            function updateGridCalculations() {
+                if (!state.image.file) return;
+
+                const { pageSize, orientation, margin, useHalfPage } = state.pageSettings;
+                const pageDims = PAPER_DIMENSIONS_MM[pageSize];
+                const pageWidth = orientation === 'landscape' ? pageDims.height : pageDims.width;
+                let pageHeight = orientation === 'landscape' ? pageDims.width : pageDims.height;
+
+                const drawableWidth = pageWidth - (2 * margin);
+                let drawableHeight = pageHeight - (2 * margin);
+
+                if (useHalfPage) {
+                    drawableHeight /= 2;
+                }
+
+                const imgWidthWithSpacing = state.image.widthMM + state.grid.spacing;
+                const imgHeightWithSpacing = state.image.heightMM + state.grid.spacing;
+
+                state.grid.cols = Math.floor((drawableWidth + state.grid.spacing) / imgWidthWithSpacing);
+                state.grid.rows = Math.floor((drawableHeight + state.grid.spacing) / imgHeightWithSpacing);
+            }
+
+            // --- RENDER LOGIC ---
+
+            function render() {
+                updateDesignArea();
+                renderGrid();
+            }
+
+            function updateDesignArea() {
+                const { pageSize, orientation, useHalfPage } = state.pageSettings;
+                const mainContent = document.getElementById('main-content');
+                const availableWidth = mainContent.clientWidth * 0.95;
+                const availableHeight = mainContent.clientHeight * 0.95;
+                
+                const pageDims = PAPER_DIMENSIONS_MM[pageSize];
+                const ratio = pageDims.width / pageDims.height;
+
+                let containerWidth, containerHeight;
+                if (orientation === 'portrait') {
+                    containerHeight = availableHeight;
+                    containerWidth = containerHeight * ratio;
+                    if (containerWidth > availableWidth) {
+                        containerWidth = availableWidth;
+                        containerHeight = containerWidth / ratio;
+                    }
+                } else {
+                    containerWidth = availableWidth;
+                    containerHeight = containerWidth / ratio;
+                    if (containerHeight > availableHeight) {
+                        containerHeight = availableHeight;
+                        containerWidth = containerHeight / ratio;
+                    }
+                }
+
+                if (useHalfPage) {
+                    containerHeight /= 2;
+                }
+
+                designContainer.style.width = `${containerWidth}px`;
+                designContainer.style.height = `${containerHeight}px`;
+                
+                const pageWidthMM = orientation === 'portrait' ? pageDims.width : pageDims.height;
+                px_per_mm = containerWidth / pageWidthMM;
+                
+                const margin_px = state.pageSettings.margin * px_per_mm;
+                designContainer.style.padding = `${margin_px}px`;
+            }
+
+            function renderGrid() {
+                gridContainer.innerHTML = '';
+                if (!state.image.file || state.grid.cols === 0 || state.grid.rows === 0) {
+                    return;
+                }
+
+                const spacing_px = state.grid.spacing * px_per_mm;
+                gridContainer.style.gridTemplateColumns = `repeat(${state.grid.cols}, 1fr)`;
+                gridContainer.style.gridTemplateRows = `repeat(${state.grid.rows}, 1fr)`;
+                gridContainer.style.gap = `${spacing_px}px`;
+
+                const imageUrl = URL.createObjectURL(state.image.file);
+                const totalCells = state.grid.cols * state.grid.rows;
+
+                for (let i = 0; i < totalCells; i++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('grid-cell');
+                    cell.style.backgroundImage = `url(${imageUrl})`;
+                    cell.style.transform = `rotate(${state.image.rotation}deg)`;
+                    gridContainer.appendChild(cell);
+                }
+            }
+
+            // --- PDF GENERATION ---
+            async function generatePdf() {
+                if (!state.image.file) {
+                    alert('Por favor, selecciona una imagen.');
+                    return;
+                }
+                generatePdfBtn.disabled = true;
+                generatePdfBtn.textContent = 'Generando...';
+
+                const formData = new FormData();
+                formData.append('image', state.image.file);
+                
+                const config = {
+                    pageSettings: state.pageSettings,
+                    image: {
+                        widthMM: state.image.widthMM,
+                        heightMM: state.image.heightMM,
+                        rotation: state.image.rotation
+                    },
+                    grid: state.grid
+                };
+                formData.append('config', JSON.stringify(config));
+
+                try {
+                    const response = await fetch('/generate-auto-repetidor', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (!response.ok) throw new Error(`Error del servidor: ${response.statusText}`);
+                    
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = 'auto-repetidor.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                } catch (error) {
+                    console.error('Error al generar el PDF:', error);
+                    alert('Hubo un error al generar el PDF.');
+                } finally {
+                    generatePdfBtn.disabled = false;
+                    generatePdfBtn.textContent = 'Generar PDF';
+                }
+            }
+
+            // --- EVENT LISTENERS ---
+            pageSizeSelect.addEventListener('change', updateAndRender);
+            orientationSelect.addEventListener('change', updateAndRender);
+            marginInput.addEventListener('input', updateAndRender);
+            useHalfPageCheckbox.addEventListener('change', updateAndRender);
+            spacingInput.addEventListener('input', updateAndRender);
+            imageInput.addEventListener('change', handleImageUpload);
+            rotateBtn.addEventListener('click', rotateImage);
+            imageWidthInput.addEventListener('change', () => updateImageDimensions('width'));
+            imageHeightInput.addEventListener('change', () => updateImageDimensions('height'));
+            generatePdfBtn.addEventListener('click', generatePdf);
+            window.addEventListener('resize', render);
+
+            // --- INITIALIZATION ---
+            render();
+        });
+    </script>
+</body>
+</html>
