@@ -77,6 +77,10 @@
             <label for="image-input">Subir Imagen:</label>
             <input type="file" id="image-input" accept="image/*">
             <button id="rotate-image-btn" style="margin-top: 10px;">Girar 90°</button>
+            <div style="margin-top: 10px;">
+                <input type="checkbox" id="unlock-ratio" name="unlock-ratio" style="width: auto; margin-right: 5px;">
+                <label for="unlock-ratio" style="display: inline-block;">Desbloquear relación de aspecto</label>
+            </div>
             <div style="display: flex; gap: 10px; margin-top: 10px;">
                 <div>
                     <label for="image-width">Ancho (mm)</label>
@@ -144,6 +148,7 @@
             const rotateBtn = document.getElementById('rotate-image-btn');
             const imageWidthInput = document.getElementById('image-width');
             const imageHeightInput = document.getElementById('image-height');
+            const unlockRatioCheckbox = document.getElementById('unlock-ratio');
             const spacingInput = document.getElementById('spacing');
             const generatePdfBtn = document.getElementById('generate-pdf-btn');
             const designContainer = document.getElementById('design-container');
@@ -183,14 +188,19 @@
                 const width = parseFloat(imageWidthInput.value);
                 const height = parseFloat(imageHeightInput.value);
 
-                if (source === 'width' && width > 0) {
+                if (unlockRatioCheckbox.checked) {
                     state.image.widthMM = width;
-                    state.image.heightMM = width / state.image.aspectRatio;
-                    imageHeightInput.value = state.image.heightMM.toFixed(2);
-                } else if (source === 'height' && height > 0) {
                     state.image.heightMM = height;
-                    state.image.widthMM = height * state.image.aspectRatio;
-                    imageWidthInput.value = state.image.widthMM.toFixed(2);
+                } else {
+                    if (source === 'width' && width > 0) {
+                        state.image.widthMM = width;
+                        state.image.heightMM = width / state.image.aspectRatio;
+                        imageHeightInput.value = state.image.heightMM.toFixed(2);
+                    } else if (source === 'height' && height > 0) {
+                        state.image.heightMM = height;
+                        state.image.widthMM = height * state.image.aspectRatio;
+                        imageWidthInput.value = state.image.widthMM.toFixed(2);
+                    }
                 }
                 updateAndRender();
             }
@@ -198,11 +208,21 @@
             function rotateImage() {
                 if (!state.image.file) return;
                 state.image.rotation = (state.image.rotation + 90) % 360;
-                // Swap aspect ratio for rotation logic
-                state.image.aspectRatio = 1 / state.image.aspectRatio;
-                // Recalculate height based on new orientation
-                state.image.heightMM = state.image.widthMM / state.image.aspectRatio;
-                imageHeightInput.value = state.image.heightMM.toFixed(2);
+
+                if (unlockRatioCheckbox.checked) {
+                    // If ratio is unlocked, just swap width and height
+                    const oldWidth = state.image.widthMM;
+                    state.image.widthMM = state.image.heightMM;
+                    state.image.heightMM = oldWidth;
+                    imageWidthInput.value = state.image.widthMM.toFixed(2);
+                    imageHeightInput.value = state.image.heightMM.toFixed(2);
+                } else {
+                    // If ratio is locked, swap aspect ratio and recalculate
+                    state.image.aspectRatio = 1 / state.image.aspectRatio;
+                    state.image.heightMM = state.image.widthMM / state.image.aspectRatio;
+                    imageHeightInput.value = state.image.heightMM.toFixed(2);
+                }
+                
                 updateAndRender();
             }
 
@@ -371,6 +391,7 @@
             rotateBtn.addEventListener('click', rotateImage);
             imageWidthInput.addEventListener('change', () => updateImageDimensions('width'));
             imageHeightInput.addEventListener('change', () => updateImageDimensions('height'));
+            unlockRatioCheckbox.addEventListener('change', () => updateImageDimensions('width')); // Recalculate on lock/unlock
             generatePdfBtn.addEventListener('click', generatePdf);
             window.addEventListener('resize', render);
 
