@@ -359,6 +359,11 @@
                 designContainer.style.height = `${containerHeight}px`;
                 const page_mm_width = orientation === 'portrait' ? 215.9 : 279.4;
                 px_per_mm = containerWidth / page_mm_width;
+
+                // Representación visual del margen de la página
+                const margin_mm = state.pageSettings.margin || 0;
+                const margin_px = margin_mm * px_per_mm;
+                designContainer.style.padding = `${margin_px}px`;
             }
 
             function updateControlsState() {
