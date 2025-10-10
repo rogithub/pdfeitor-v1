@@ -181,7 +181,6 @@
             function handleBatchImageUpload(e) {
                 state.imageFiles = Array.from(e.target.files);
                 distributeImagesToPages();
-                selectPage(0);
             }
 
             function distributeImagesToPages() {
@@ -192,24 +191,57 @@
                     return;
                 }
 
-                const cellsPerPage = state.template.baseCols * state.template.baseRows;
-                let imageIndex = 0;
-                while (imageIndex < state.imageFiles.length) {
-                    const newPage = createPageFromTemplate();
-                    newPage.cells.forEach(cell => {
-                        if (imageIndex < state.imageFiles.length) {
-                            const file = state.imageFiles[imageIndex];
-                            cell.image = { file, url: URL.createObjectURL(file), rotation: 0, name: file.name };
-                            imageIndex++;
-                        }
+                // --- START: Auto-rotation logic ---
+                const { pageSize, orientation, margin } = state.pageSettings;
+                const { baseCols, baseRows, spacing } = state.template;
+
+                const pageDimensionsMM = {
+                    letter: { width: 215.9, height: 279.4 },
+                    legal: { width: 215.9, height: 355.6 }
+                };
+
+                const pageWidthMM = orientation === 'landscape' ? pageDimensionsMM[pageSize].height : pageDimensionsMM[pageSize].width;
+                const pageHeightMM = orientation === 'landscape' ? pageDimensionsMM[pageSize].width : pageDimensionsMM[pageSize].height;
+
+                const drawableWidthMM = pageWidthMM - (2 * margin);
+                const drawableHeightMM = pageHeightMM - (2 * margin);
+
+                const cellWidthMM = (drawableWidthMM - (baseCols - 1) * spacing) / baseCols;
+                const cellHeightMM = (drawableHeightMM - (baseRows - 1) * spacing) / baseRows;
+                const cellIsLandscape = cellWidthMM > cellHeightMM;
+                // --- END: Auto-rotation logic ---
+                
+                const imageProcessingPromises = state.imageFiles.map(file => {
+                    return new Promise(resolve => {
+                        const imageUrl = URL.createObjectURL(file);
+                        const img = new Image();
+                        img.onload = () => {
+                            const imageIsLandscape = img.naturalWidth > img.naturalHeight;
+                            const rotation = (imageIsLandscape !== cellIsLandscape) ? 90 : 0;
+                            resolve({ file, url: imageUrl, rotation, name: file.name });
+                        };
+                        img.src = imageUrl;
                     });
-                    state.pages.push(newPage);
-                }
-                // Si no hay imágenes, asegurarse de que haya al menos una página en blanco
-                if (state.pages.length === 0) {
-                    state.pages.push(createPageFromTemplate());
-                }
-                render();
+                });
+
+                Promise.all(imageProcessingPromises).then(processedImages => {
+                    let imageIndex = 0;
+                    while (imageIndex < processedImages.length) {
+                        const newPage = createPageFromTemplate();
+                        newPage.cells.forEach(cell => {
+                            if (imageIndex < processedImages.length) {
+                                cell.image = processedImages[imageIndex];
+                                imageIndex++;
+                            }
+                        });
+                        state.pages.push(newPage);
+                    }
+
+                    if (state.pages.length === 0) {
+                        state.pages.push(createPageFromTemplate());
+                    }
+                    selectPage(0);
+                });
             }
             
             function clearAll() {
@@ -456,8 +488,12 @@
                 generatePdfBtn.textContent = 'Generando...';
 
                 const formData = new FormData();
+                const pageSettingsWithSpacing = {
+                    ...state.pageSettings,
+                    spacing: state.template.spacing
+                };
                 const config = {
-                    pageSettings: state.pageSettings,
+                    pageSettings: pageSettingsWithSpacing,
                     pages: []
                 };
 
@@ -524,7 +560,29 @@
             imageInputSingle.addEventListener('change', (e) => {
                 if (e.target.files[0]) {
                     state.currentModalFile = e.target.files[0];
-                    imagePreview.src = URL.createObjectURL(state.currentModalFile);
+                    const imageUrl = URL.createObjectURL(state.currentModalFile);
+                    imagePreview.src = imageUrl;
+
+                    // Lógica de auto-rotación
+                    const img = new Image();
+                    img.onload = () => {
+                        const page = state.pages[state.activePageIndex];
+                        const cellState = page.cells.find(c => c.id === state.activeModalCellId);
+                        const cellElement = gridContainer.querySelector(`[data-id="${cellState.id}"]`);
+                        if (!cellElement) return;
+
+                        const imageIsLandscape = img.naturalWidth > img.naturalHeight;
+                        const cellIsLandscape = cellElement.clientWidth > cellElement.clientHeight;
+
+                        if (imageIsLandscape !== cellIsLandscape) {
+                            state.currentModalRotation = 90;
+                        } else {
+                            state.currentModalRotation = 0;
+                        }
+                        imagePreview.style.transform = `rotate(${state.currentModalRotation}deg)`;
+                        URL.revokeObjectURL(imageUrl);
+                    };
+                    img.src = imageUrl;
                 }
             });
             rotateBtn.addEventListener('click', () => {

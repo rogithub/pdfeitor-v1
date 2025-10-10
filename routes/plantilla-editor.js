@@ -19,6 +19,16 @@ async function generatePlantilla(req, res) {
 
         // Iterar sobre cada definición de página recibida del frontend
         for (const pageData of pages) {
+            // --- FIX: Prevenir páginas en blanco ---
+            // Verificar si alguna celda en esta página tiene una imagen válida asignada
+            const hasImagesOnPage = pageData.cells.some(cell => cell.image && cell.image.name && imagesMap[cell.image.name]);
+
+            // Si no hay imágenes, saltar a la siguiente iteración para no crear una página vacía
+            if (!hasImagesOnPage) {
+                console.log('[PLANTILLA-EDITOR] Omitiendo página vacía.');
+                continue;
+            }
+            
             const page = pdfDoc.addPage();
 
             // Configurar tamaño y orientación
@@ -61,8 +71,9 @@ async function generatePlantilla(req, res) {
                 const currentCellHeight = cell.rowSpan * cellHeight + (cell.rowSpan - 1) * spacingPt;
 
                 let processedImageBuffer = imageBuffer;
-                if (cell.rotation > 0) {
-                    processedImageBuffer = await sharp(imageBuffer).rotate(cell.rotation).toBuffer();
+                // FIX: Acceder a la rotación desde el objeto anidado 'image'
+                if (cell.image && cell.image.rotation > 0) {
+                    processedImageBuffer = await sharp(imageBuffer).rotate(cell.image.rotation).toBuffer();
                 }
                 
                 const isPng = (await sharp(processedImageBuffer).metadata()).format === 'png';
