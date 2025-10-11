@@ -1,38 +1,20 @@
 const express = require('express');
-const multer = require('multer');
 const path = require('path');
-
-// Importar rutas modulares
-
-const layoutEditorRoutes = require('./routes/layout-editor'); // Ruta para el editor de layouts
-const multiPaginaRoutes = require('./routes/multi-pagina'); // Ruta para el creador multi-página
-const plantillaEditorRoutes = require('./routes/plantilla-editor'); // Ruta para el editor de plantillas
-const autoRepetidorRoutes = require('./routes/auto-repetidor'); // Nueva ruta
-const common = require('./routes/common');
+const multer = require('multer'); // Keep for error handling
+const apiRoutes = require('./routes'); // Import the main router
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-// Configuración de multer
-const storage = multer.memoryStorage();
-const upload = multer({ 
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024
-  }
-});
 
 // Middleware
 app.use(express.static('public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Servir archivos HTML
+// HTML Page Routes
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-
-
 
 app.get('/layout-editor', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'layout-editor.html'));
@@ -50,28 +32,22 @@ app.get('/auto-repetidor', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'auto-repetidor.html'));
 });
 
-// Configurar rutas
+// API Routes
+app.use('/', apiRoutes);
 
-app.post('/generate-multi-pagina', upload.array('images', 50), multiPaginaRoutes.generateMultiPagina);
-app.post('/generate-plantilla', upload.array('images', 100), plantillaEditorRoutes.generatePlantilla); // Límite alto
-app.post('/generate-auto-repetidor', upload.single('image'), autoRepetidorRoutes.generateAutoRepetidor);
-
-// Usar el router para el editor de layouts
-app.use('/', layoutEditorRoutes);
-
-// Manejo de errores
+// Centralized Error Handling
 app.use((error, req, res, next) => {
   if (error instanceof multer.MulterError) {
-    console.error('Error Multer:', error);
+    console.error('Multer Error:', error);
     if (error.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'Archivo demasiado grande' });
+      return res.status(400).json({ error: 'El archivo es demasiado grande.' });
     }
     if (error.code === 'LIMIT_UNEXPECTED_FILE') {
-      return res.status(400).json({ error: 'Campo de archivo inesperado' });
+      return res.status(400).json({ error: 'Campo de archivo inesperado.' });
     }
   }
-  console.error('Error general:', error);
-  res.status(500).json({ error: error.message });
+  console.error('Unhandled Error:', error);
+  res.status(500).json({ error: 'Ocurrió un error en el servidor.' });
 });
 
 app.listen(PORT, () => {
