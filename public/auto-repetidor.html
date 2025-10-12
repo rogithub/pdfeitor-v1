@@ -4,58 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pdfeitor V1: Auto-Repetidor</title>
-    <style>
-        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; }
-        #controls { width: 300px; padding: 20px; background-color: #f8f9fa; overflow-y: auto; border-right: 1px solid #dee2e6;}
-        #main-content { flex-grow: 1; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #e9ecef; }
-        #design-container { 
-            border: 2px dashed #ccc; 
-            background-color: white; 
-            box-sizing: border-box;
-        }
-        .control-group { margin-bottom: 15px; border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #fff; }
-        .control-group h3 {
-            margin-top: 0;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #eee;
-            font-size: 1.1em;
-        }
-        .info-text {
-            font-size: 0.85em;
-            color: #6c757d;
-            margin-top: 0;
-            margin-bottom: 10px;
-        }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input, select, button { width: 100%; padding: 8px; box-sizing: border-box; }
-        button { background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; margin-top: 10px; }
-        button:hover { background-color: #0056b3; }
-        button:disabled { background-color: #cccccc; cursor: not-allowed; }
-        #grid-container { display: grid; width: 100%; height: 100%; }
-        .grid-cell { 
-            border: 1px solid #ddd; 
-            background-color: #f0f0f0; 
-            overflow: hidden;
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-        }
-    </style>
+    <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
     <aside id="controls">
         <h1>Auto-Repetidor</h1>
+        <p class="info-text" style="margin-top: -10px; margin-bottom: 20px;">
+            <a href="/">&#8592; Volver al Menú</a>
+        </p>
         
         <div class="control-group">                            
             <h3>1. Configuración de Página</h3>
-            <div style="margin-top: 15px;">
+            <div>
                 <label for="pageSize">Tamaño de Página</label>
                 <select id="pageSize" name="pageSize">
                     <option value="letter" selected>Carta</option>
                     <option value="legal">Oficio</option>
                 </select>
             </div>                            
-            <div>
+            <div style="margin-top: 15px;">
                 <label for="orientation">Orientación</label>
                 <select id="orientation" name="orientation">
                     <option value="portrait" selected>Vertical</option>
@@ -67,7 +34,7 @@
                 <input type="number" id="margin" name="margin" value="10" min="0">
             </div>
             <div style="margin-top: 15px;">
-                <input type="checkbox" id="useHalfPage" name="useHalfPage" style="width: auto;">
+                <input type="checkbox" id="useHalfPage" name="useHalfPage">
                 <label for="useHalfPage" style="display: inline-block;">Usar solo media página</label>
             </div>
         </div>
@@ -76,9 +43,9 @@
             <h3>2. Seleccionar Imagen</h3>
             <label for="image-input">Subir Imagen:</label>
             <input type="file" id="image-input" accept="image/*">
-            <button id="rotate-image-btn" style="margin-top: 10px;">Girar 90°</button>
+            <button id="rotate-image-btn">Girar 90°</button>
             <div style="margin-top: 10px;">
-                <input type="checkbox" id="unlock-ratio" name="unlock-ratio" style="width: auto; margin-right: 5px;">
+                <input type="checkbox" id="unlock-ratio" name="unlock-ratio">
                 <label for="unlock-ratio" style="display: inline-block;">Permitir deformarse</label>
             </div>
             <div style="display: flex; gap: 10px; margin-top: 10px;">
@@ -101,9 +68,9 @@
             </div>
         </div>
 
-        <div class="control-group">
+        <div class="control-group" style="margin-top: auto;">
             <h3>4. Finalizar</h3>
-            <button id="generate-pdf-btn" style="background-color: #28a745;" disabled>Generar PDF</button>
+            <button id="generate-pdf-btn" class="btn-generate" disabled>Generar PDF</button>
         </div>
     </aside>
 
@@ -115,6 +82,8 @@
         </div>
     </main>
 
+    <script src="/js/constants.js"></script>
+    <script src="/js/ui.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- STATE MANAGEMENT ---
@@ -153,11 +122,8 @@
             const generatePdfBtn = document.getElementById('generate-pdf-btn');
             const designContainer = document.getElementById('design-container');
             const gridContainer = document.getElementById('grid-container');
+            const mainContent = document.getElementById('main-content');
 
-            const PAPER_DIMENSIONS_MM = {
-                letter: { width: 215.9, height: 279.4 },
-                legal: { width: 215.9, height: 355.6 }
-            };
             let px_per_mm = 1;
 
             // --- CORE LOGIC ---
@@ -265,48 +231,12 @@
             // --- RENDER LOGIC ---
 
             function render() {
-                updateDesignArea();
+                px_per_mm = updateDesignArea({
+                    ...state.pageSettings,
+                    containerElement: designContainer,
+                    areaElement: mainContent
+                });
                 renderGrid();
-            }
-
-            function updateDesignArea() {
-                const { pageSize, orientation, useHalfPage } = state.pageSettings;
-                const mainContent = document.getElementById('main-content');
-                const availableWidth = mainContent.clientWidth * 0.95;
-                const availableHeight = mainContent.clientHeight * 0.95;
-                
-                const pageDims = PAPER_DIMENSIONS_MM[pageSize];
-                const ratio = pageDims.width / pageDims.height;
-
-                let containerWidth, containerHeight;
-                if (orientation === 'portrait') {
-                    containerHeight = availableHeight;
-                    containerWidth = containerHeight * ratio;
-                    if (containerWidth > availableWidth) {
-                        containerWidth = availableWidth;
-                        containerHeight = containerWidth / ratio;
-                    }
-                } else {
-                    containerWidth = availableWidth;
-                    containerHeight = containerWidth / ratio;
-                    if (containerHeight > availableHeight) {
-                        containerHeight = availableHeight;
-                        containerWidth = containerHeight / ratio;
-                    }
-                }
-
-                if (useHalfPage) {
-                    containerHeight /= 2;
-                }
-
-                designContainer.style.width = `${containerWidth}px`;
-                designContainer.style.height = `${containerHeight}px`;
-                
-                const pageWidthMM = orientation === 'portrait' ? pageDims.width : pageDims.height;
-                px_per_mm = containerWidth / pageWidthMM;
-                
-                const margin_px = state.pageSettings.margin * px_per_mm;
-                designContainer.style.padding = `${margin_px}px`;
             }
 
             function renderGrid() {

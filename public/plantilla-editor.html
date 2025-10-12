@@ -4,38 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pdfeitor V1: Editor de Plantillas Multi-página</title>
-    <style>
-        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; }
-        #controls { width: 350px; padding: 20px; background-color: #f8f9fa; overflow-y: auto; border-right: 1px solid #dee2e6; display: flex; flex-direction: column; }
-        #main-content { flex-grow: 1; padding: 20px; display: flex; background-color: #e9ecef; gap: 20px; }
-        #preview-area { flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        #page-thumbnails { width: 150px; overflow-y: auto; background: #fff; border-left: 1px solid #dee2e6; padding: 10px; }
-        #design-container { border: 2px dashed #ccc; background-color: white; box-sizing: border-box; }
-        .control-group { margin-bottom: 15px; border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #fff; }
-        .control-group h3 { margin-top: 0; padding-bottom: 10px; border-bottom: 1px solid #eee; font-size: 1.1em; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input, select, button { width: 100%; padding: 8px; box-sizing: border-box; }
-        button { background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; margin-top: 10px; }
-        button:hover { background-color: #0056b3; }
-        button:disabled { background-color: #cccccc; cursor: not-allowed; }
-        #grid-container { display: grid; width: 100%; height: 100%; }
-        .grid-cell { border: 1px solid #ddd; background-color: #f0f0f0; cursor: pointer; overflow: hidden; }
-        .image-container { width: 100%; height: 100%; background-size: contain; background-repeat: no-repeat; background-position: center; }
-        .grid-cell.selected { background-color: #a0c4ff; border-color: #0056b3; }
-        .thumbnail { border: 1px solid #ccc; margin-bottom: 10px; cursor: pointer; position: relative; }
-        .thumbnail img { max-width: 100%; display: block; }
-        .thumbnail.selected { border-color: #007bff; border-width: 3px; padding: 2px; }
-        .thumb-page-number { position: absolute; bottom: 2px; right: 5px; font-size: 0.8em; background: rgba(0,0,0,0.6); color: white; padding: 1px 4px; border-radius: 3px; }
-        #image-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
-        .modal-content { background-color: #fefefe; margin: auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 10px; }
-        #image-preview-container { width: 100%; height: 250px; border: 1px dashed #ccc; margin-top: 10px; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-        #image-preview { max-width: 100%; max-height: 100%; }
-        .modal-actions { display: flex; justify-content: space-between; margin-top: 15px; }
-    </style>
+    <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
     <aside id="controls">
         <h1>Editor de Plantillas</h1>
+        <p class="info-text" style="margin-top: -10px; margin-bottom: 20px;">
+            <a href="/">&#8592; Volver al Menú</a>
+        </p>
         
         <div class="control-group">
             <h3>1. Configuración Global</h3>
@@ -55,25 +31,25 @@
             <input type="number" id="base-rows" value="2" min="1">
             <label for="spacing" style="margin-top: 10px;">Espaciado (mm)</label>
             <input type="number" id="spacing" value="5" min="0">
-            <button id="apply-template-btn">Aplicar Plantilla</button>
+            <button id="apply-template-btn">Aplicar Plantilla a Imágenes</button>
         </div>
 
         <div class="control-group">
             <h3>3. Cargar Imágenes</h3>
             <input type="file" id="image-input-batch" accept="image/*" multiple>
-            <button id="clear-images-btn" style="background-color: #dc3545; margin-top: 5px;">Limpiar Todo</button>
+            <button id="clear-images-btn" class="btn-clear">Limpiar Todo</button>
         </div>
         
         <div class="control-group" id="cell-actions-group" style="display: none;">
             <h3>4. Acciones de Celda</h3>
-            <p style="font-size: 0.85em; color: #6c757d; margin-top: 0;">(Mantén <b>Ctrl</b> para seleccionar celdas en la página activa)</p>
+            <p class="info-text">(Mantén <b>Ctrl</b> para seleccionar celdas en la página activa)</p>
             <button id="merge-cells-btn" disabled>Combinar Celdas</button>
-            <button id="split-cells-btn" disabled style="margin-top: 5px; background-color: #ffc107;">Separar Celda</button>
+            <button id="split-cells-btn" class="btn-split" disabled>Separar Celda</button>
         </div>
 
         <div class="control-group" style="margin-top: auto;">
             <h3>5. Finalizar</h3>
-            <button id="generate-pdf-btn" style="background-color: #28a745;" disabled>Generar PDF</button>
+            <button id="generate-pdf-btn" class="btn-generate" disabled>Generar PDF</button>
         </div>
     </aside>
 
@@ -97,15 +73,17 @@
             <div id="image-preview-container"><img id="image-preview" src=""></div>
             <div class="modal-actions">
                 <button id="rotate-image-btn">Girar 90°</button>
-                <button id="remove-image-btn" style="background-color: #dc3545;">Quitar Imagen</button>
+                <button id="remove-image-btn" class="btn-remove">Quitar Imagen</button>
             </div>
             <div class="modal-actions">
-                <button id="cancel-modal-btn" style="background-color: #6c757d;">Cancelar</button>
-                <button id="save-image-btn" style="background-color: #28a745;">Guardar</button>
+                <button id="cancel-modal-btn" class="btn-cancel">Cancelar</button>
+                <button id="save-image-btn" class="btn-generate">Guardar</button>
             </div>
         </div>
     </div>
 
+    <script src="/js/constants.js"></script>
+    <script src="/js/ui.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- STATE MANAGEMENT ---
@@ -139,6 +117,7 @@
             const designContainer = document.getElementById('design-container');
             const gridContainer = document.getElementById('grid-container');
             const thumbnailsContainer = document.getElementById('page-thumbnails');
+            const previewArea = document.getElementById('preview-area');
             // Modal elements
             const imageModal = document.getElementById('image-modal');
             const imageInputSingle = document.getElementById('image-input-single');
@@ -148,7 +127,6 @@
             const saveBtn = document.getElementById('save-image-btn');
             const cancelBtn = document.getElementById('cancel-modal-btn');
 
-            const PAPER_RATIOS = { letter: 8.5 / 11, legal: 8.5 / 14 };
             let px_per_mm = 1;
 
             // --- CORE LOGIC ---
@@ -191,17 +169,12 @@
                     return;
                 }
 
-                // --- START: Auto-rotation logic ---
                 const { pageSize, orientation, margin } = state.pageSettings;
                 const { baseCols, baseRows, spacing } = state.template;
 
-                const pageDimensionsMM = {
-                    letter: { width: 215.9, height: 279.4 },
-                    legal: { width: 215.9, height: 355.6 }
-                };
-
-                const pageWidthMM = orientation === 'landscape' ? pageDimensionsMM[pageSize].height : pageDimensionsMM[pageSize].width;
-                const pageHeightMM = orientation === 'landscape' ? pageDimensionsMM[pageSize].width : pageDimensionsMM[pageSize].height;
+                const pageDims = PAPER_DIMENSIONS_MM[pageSize];
+                const pageWidthMM = orientation === 'landscape' ? pageDims.height : pageDims.width;
+                const pageHeightMM = orientation === 'landscape' ? pageDims.width : pageDims.height;
 
                 const drawableWidthMM = pageWidthMM - (2 * margin);
                 const drawableHeightMM = pageHeightMM - (2 * margin);
@@ -209,7 +182,6 @@
                 const cellWidthMM = (drawableWidthMM - (baseCols - 1) * spacing) / baseCols;
                 const cellHeightMM = (drawableHeightMM - (baseRows - 1) * spacing) / baseRows;
                 const cellIsLandscape = cellWidthMM > cellHeightMM;
-                // --- END: Auto-rotation logic ---
                 
                 const imageProcessingPromises = state.imageFiles.map(file => {
                     return new Promise(resolve => {
@@ -253,7 +225,12 @@
             // --- RENDER LOGIC ---
 
             function render() {
-                updateDesignArea();
+                px_per_mm = updateDesignArea({
+                    ...state.pageSettings,
+                    useHalfPage: false,
+                    containerElement: designContainer,
+                    areaElement: previewArea
+                });
                 renderGrid();
                 renderThumbnails();
                 updateControlsState();
@@ -263,12 +240,12 @@
                 const page = state.pages[state.activePageIndex];
                 if (!page) return;
 
-                const { baseCols, baseRows } = page;
+                const { baseCols } = page;
                 const spacing_px = state.template.spacing * px_per_mm;
 
                 gridContainer.innerHTML = '';
                 gridContainer.style.gridTemplateColumns = `repeat(${baseCols}, 1fr)`;
-                gridContainer.style.gridTemplateRows = `repeat(${baseRows}, 1fr)`;
+                gridContainer.style.gridTemplateRows = `repeat(${page.baseRows}, 1fr)`;
                 gridContainer.style.gap = `${spacing_px}px`;
 
                 page.cells.forEach(cell => {
@@ -307,9 +284,8 @@
                     if (index === state.activePageIndex) thumb.classList.add('selected');
 
                     const img = document.createElement('img');
-                    // Usar la primera imagen de la página como miniatura
                     const firstImageCell = page.cells.find(c => c.image.url);
-                    img.src = firstImageCell ? firstImageCell.image.url : 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; // Placeholder
+                    img.src = firstImageCell ? firstImageCell.image.url : 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
                     
                     const pageNum = document.createElement('span');
                     pageNum.className = 'thumb-page-number';
@@ -331,40 +307,6 @@
             }
 
             // --- UI & CONTROLS UPDATE ---
-
-            function updateDesignArea() {
-                const { orientation, pageSize } = state.pageSettings;
-                const mainContent = document.getElementById('preview-area');
-                const availableWidth = mainContent.clientWidth * 0.95;
-                const availableHeight = mainContent.clientHeight * 0.95;
-                let containerWidth, containerHeight;
-                const ratio = PAPER_RATIOS[pageSize];
-
-                if (orientation === 'portrait') {
-                    containerHeight = availableHeight;
-                    containerWidth = containerHeight * ratio;
-                    if (containerWidth > availableWidth) {
-                        containerWidth = availableWidth;
-                        containerHeight = containerWidth / ratio;
-                    }
-                } else {
-                    containerWidth = availableWidth;
-                    containerHeight = containerWidth * ratio;
-                    if (containerHeight > availableHeight) {
-                        containerHeight = availableHeight;
-                        containerWidth = containerHeight / ratio;
-                    }
-                }
-                designContainer.style.width = `${containerWidth}px`;
-                designContainer.style.height = `${containerHeight}px`;
-                const page_mm_width = orientation === 'portrait' ? 215.9 : 279.4;
-                px_per_mm = containerWidth / page_mm_width;
-
-                // Representación visual del margen de la página
-                const margin_mm = state.pageSettings.margin || 0;
-                const margin_px = margin_mm * px_per_mm;
-                designContainer.style.padding = `${margin_px}px`;
-            }
 
             function updateControlsState() {
                 generatePdfBtn.disabled = state.imageFiles.length === 0;
@@ -407,7 +349,7 @@
 
             function mergeCells() {
                 const page = state.pages[state.activePageIndex];
-                const selectedCells = Array.from(state.selectedCellIds).map(id => page.cells[id]);
+                const selectedCells = Array.from(state.selectedCellIds).map(id => page.cells.find(c => c.id === id));
                 const minRow = Math.min(...selectedCells.map(c => c.row));
                 const maxRow = Math.max(...selectedCells.map(c => c.row + c.rowSpan - 1));
                 const minCol = Math.min(...selectedCells.map(c => c.col));
@@ -415,10 +357,9 @@
                 const colSpan = maxCol - minCol + 1;
                 const rowSpan = maxRow - minRow + 1;
 
-                // Validar que la selección sea un rectángulo
                 let totalCellsInRect = 0;
                 page.cells.forEach(c => {
-                    if(c.row >= minRow && c.row <= maxRow && c.col >= minCol && c.col <= maxCol) {
+                    if(c.visible && c.row >= minRow && (c.row + c.rowSpan - 1) <= maxRow && c.col >= minCol && (c.col + c.colSpan - 1) <= maxCol) {
                         totalCellsInRect++;
                     }
                 });
@@ -502,7 +443,6 @@
                     pages: []
                 };
 
-                // Preparar la configuración y recolectar los archivos
                 state.pages.forEach((page, pageIndex) => {
                     const pageData = { baseCols: page.baseCols, baseRows: page.baseRows, cells: [] };
                     page.cells.forEach(cell => {
@@ -510,7 +450,6 @@
                         if (cell.image.file) {
                             const uniqueName = `p${pageIndex}_c${cell.id}_${cell.image.file.name}`;
                             cellData.image.name = uniqueName;
-                            // Renombrar el archivo antes de añadirlo para que el backend lo identifique
                             const renamedFile = new File([cell.image.file], uniqueName, { type: cell.image.file.type });
                             formData.append('images', renamedFile);
                         }
@@ -568,7 +507,6 @@
                     const imageUrl = URL.createObjectURL(state.currentModalFile);
                     imagePreview.src = imageUrl;
 
-                    // Lógica de auto-rotación
                     const img = new Image();
                     img.onload = () => {
                         const page = state.pages[state.activePageIndex];
@@ -579,11 +517,7 @@
                         const imageIsLandscape = img.naturalWidth > img.naturalHeight;
                         const cellIsLandscape = cellElement.clientWidth > cellElement.clientHeight;
 
-                        if (imageIsLandscape !== cellIsLandscape) {
-                            state.currentModalRotation = 90;
-                        } else {
-                            state.currentModalRotation = 0;
-                        }
+                        state.currentModalRotation = (imageIsLandscape !== cellIsLandscape) ? 90 : 0;
                         imagePreview.style.transform = `rotate(${state.currentModalRotation}deg)`;
                         URL.revokeObjectURL(imageUrl);
                     };
@@ -602,7 +536,10 @@
             });
 
             // --- INITIALIZATION ---
-            applyTemplate(); // Esto crea la primera página vacía y renderiza todo
+            // A small delay ensures the flexbox layout is calculated before the first render.
+            setTimeout(() => {
+                applyTemplate();
+            }, 0);
         });
     </script>
 </body>

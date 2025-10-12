@@ -4,32 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pdfeitor V1: Creador Multi-página</title>
-    <style>
-        body { font-family: sans-serif; display: flex; height: 100vh; margin: 0; }
-        #controls { width: 350px; padding: 20px; background-color: #f8f9fa; overflow-y: auto; border-right: 1px solid #dee2e6; display: flex; flex-direction: column; }
-        #main-content { flex-grow: 1; padding: 20px; display: flex; background-color: #e9ecef; gap: 20px; }
-        #preview-area { flex-grow: 1; display: flex; align-items: center; justify-content: center; }
-        #page-thumbnails { width: 150px; overflow-y: auto; background: #fff; border-left: 1px solid #dee2e6; padding: 10px; }
-        #design-container { border: 2px dashed #ccc; background-color: white; box-sizing: border-box; position: relative; }
-        .grid-cell { width: 100%; height: 100%; background-size: contain; background-repeat: no-repeat; background-position: center; }
-        .control-group { margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 8px; background-color: #fff; }
-        .control-group h3 { margin-top: 0; padding-bottom: 10px; border-bottom: 1px solid #eee; font-size: 1.1em; }
-        label { display: block; margin-bottom: 8px; font-weight: bold; }
-        input, select, button { width: 100%; padding: 10px; box-sizing: border-box; }
-        button { background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; margin-top: 10px; }
-        button:hover { background-color: #0056b3; }
-        button:disabled { background-color: #cccccc; cursor: not-allowed; }
-        .thumbnail { border: 1px solid #ccc; margin-bottom: 10px; cursor: pointer; position: relative; }
-        .thumbnail img { max-width: 100%; display: block; }
-        .thumbnail.selected { border-color: #007bff; border-width: 2px; }
-        .thumb-page-number { position: absolute; bottom: 2px; right: 5px; font-size: 0.8em; background: rgba(0,0,0,0.5); color: white; padding: 1px 4px; border-radius: 3px; }
-        #image-drop-zone { border: 2px dashed #007bff; border-radius: 8px; padding: 20px; text-align: center; background-color: #f0f8ff; cursor: pointer; margin-top: 15px; }
-        #image-drop-zone p { margin: 0; color: #007bff; font-weight: bold; }
-    </style>
+    <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
     <aside id="controls">
-        <h1>Creador Multi-página</h1>
+        <h1>Una Imagen por Página</h1>
+        <p class="info-text" style="margin-top: -10px; margin-bottom: 20px;">
+            <a href="/">&#8592; Volver al Menú</a>
+        </p>
         
         <div class="control-group">
             <h3>1. Configuración de Página</h3>
@@ -52,12 +34,12 @@
                 <p>Arrastra imágenes aquí o haz clic</p>
             </div>
             <input type="file" id="image-input" accept="image/*" multiple style="display: none;">
-            <button id="clear-images-btn" style="background-color: #dc3545; margin-top: 15px;">Limpiar Imágenes</button>
+            <button id="clear-images-btn" class="btn-clear">Limpiar Imágenes</button>
         </div>
         
         <div class="control-group" style="margin-top: auto;">
             <h3>3. Finalizar</h3>
-            <button id="generate-pdf-btn" disabled style="background-color: #28a745;">Generar PDF de Múltiples Páginas</button>
+            <button id="generate-pdf-btn" class="btn-generate" disabled>Generar PDF</button>
         </div>
     </aside>
 
@@ -72,6 +54,7 @@
         </aside>
     </main>
 
+    <script src="/js/constants.js"></script>
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         // --- ELEMENTOS DEL DOM ---
@@ -86,7 +69,6 @@
         const mainPreview = document.getElementById('main-preview');
         const pageThumbnailsContainer = document.getElementById('page-thumbnails');
 
-        const PAPER_RATIOS = { letter: 8.5 / 11, legal: 8.5 / 14 };
         let imageFiles = []; // Almacenará los objetos File
         let selectedPageIndex = -1;
 
@@ -132,7 +114,7 @@
                 alert('Hubo un error al generar el PDF.');
             } finally {
                 generatePdfBtn.disabled = false;
-                generatePdfBtn.textContent = 'Generar PDF de Múltiples Páginas';
+                generatePdfBtn.textContent = 'Generar PDF';
             }
         }
 
@@ -142,7 +124,7 @@
             if (newFiles.length > 0) {
                 imageFiles.push(...newFiles);
                 renderThumbnails();
-                selectPage(imageFiles.length - 1); // Seleccionar la última imagen añadida
+                selectPage(imageFiles.length - 1);
             }
             updateGenerateButtonState();
         }
@@ -179,12 +161,16 @@
                 const img = new Image();
                 img.onload = () => {
                     const imageIsLandscape = img.naturalWidth > img.naturalHeight;
-                    updateDesignArea(imageIsLandscape); // Actualizar orientación del preview
+                    updateDesignArea(imageIsLandscape);
                     mainPreview.style.backgroundImage = `url(${imageUrl})`;
-                    URL.revokeObjectURL(imageUrl);
                 };
                 img.src = imageUrl;
 
+                renderThumbnails();
+            } else if (imageFiles.length === 0) {
+                selectedPageIndex = -1;
+                mainPreview.style.backgroundImage = 'none';
+                updateDesignArea(false); // Reset to portrait
                 renderThumbnails();
             }
         }
@@ -199,7 +185,6 @@
             let containerWidth, containerHeight;
             const pageRatio = PAPER_RATIOS[pageSize];
             
-            // La orientación del contenedor se basa en la imagen
             const orientation = imageIsLandscape ? 'landscape' : 'portrait';
 
             if (orientation === 'portrait') {
@@ -258,15 +243,12 @@
 
         clearImagesBtn.addEventListener('click', () => {
             imageFiles = [];
-            selectedPageIndex = -1;
-            mainPreview.style.backgroundImage = 'none';
-            renderThumbnails();
+            selectPage(-1);
             updateGenerateButtonState();
-            updateDesignArea(false); // Reset a portrait
         });
 
         // --- INICIALIZACIÓN ---
-        updateDesignArea(false); // Iniciar con preview portrait
+        updateDesignArea(false);
     });
     </script>
 </body>
