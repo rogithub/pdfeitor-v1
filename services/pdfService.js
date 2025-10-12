@@ -124,54 +124,50 @@ async function createMultiPaginaPdf(files, pageSettings) {
     const pdfDoc = await PDFDocument.create();
 
     for (const file of files) {
-        const imageBuffer = file.buffer;
+        let imageBuffer = file.buffer;
         const imageMetadata = await sharp(imageBuffer).metadata();
         const imageIsLandscape = imageMetadata.width > imageMetadata.height;
 
+        // If the image is landscape, rotate it with sharp before embedding
+        if (imageIsLandscape) {
+            imageBuffer = await sharp(imageBuffer).rotate(90).toBuffer();
+        }
+
+        // Now, the image buffer is always portrait-oriented
+        const image = imageMetadata.format === 'png' 
+            ? await pdfDoc.embedPng(imageBuffer) 
+            : await pdfDoc.embedJpg(imageBuffer);
+
+        // Always create a portrait page
         const { width: pageWidthPt, height: pageHeightPt } = PAPER_DIMENSIONS_PT[pageSettings.pageSize || 'letter'];
-        const page = pdfDoc.addPage();
-        page.setSize(
-            imageIsLandscape ? pageHeightPt : pageWidthPt,
-            imageIsLandscape ? pageWidthPt : pageHeightPt
-        );
+        const page = pdfDoc.addPage([pageWidthPt, pageHeightPt]);
 
         const { width: currentPageWidth, height: currentPageHeight } = page.getSize();
         const drawableWidth = currentPageWidth - (marginPt * 2);
         const drawableHeight = currentPageHeight - (marginPt * 2);
 
-        const image = imageMetadata.format === 'png' ? await pdfDoc.embedPng(imageBuffer) : await pdfDoc.embedJpg(imageBuffer);
-
-        const cellAspectRatio = drawableWidth / drawableHeight;
+        // Fit the (now always portrait) image into the drawable area
         const imageAspectRatio = image.width / image.height;
-        let imgWidth, imgHeight, rotation = 0;
-
-        const imageOrientation = image.width > image.height ? 'landscape' : 'portrait';
-        const cellOrientation = drawableWidth > drawableHeight ? 'landscape' : 'portrait';
-
-        if (imageOrientation !== cellOrientation) {
-            rotation = 90;
-            const rotatedImageAspectRatio = image.height / image.width;
-            if (rotatedImageAspectRatio > cellAspectRatio) {
-                imgWidth = drawableWidth;
-                imgHeight = imgWidth / rotatedImageAspectRatio;
-            } else {
-                imgHeight = drawableHeight;
-                imgWidth = imgHeight * rotatedImageAspectRatio;
-            }
+        const cellAspectRatio = drawableWidth / drawableHeight;
+        
+        let imgWidth, imgHeight;
+        if (imageAspectRatio > cellAspectRatio) {
+            imgWidth = drawableWidth;
+            imgHeight = imgWidth / imageAspectRatio;
         } else {
-            if (imageAspectRatio > cellAspectRatio) {
-                imgWidth = drawableWidth;
-                imgHeight = imgWidth / imageAspectRatio;
-            } else {
-                imgHeight = drawableHeight;
-                imgWidth = imgHeight * imageAspectRatio;
-            }
+            imgHeight = drawableHeight;
+            imgWidth = imgHeight * imageAspectRatio;
         }
 
         const imgX = marginPt + (drawableWidth - imgWidth) / 2;
         const imgY = marginPt + (drawableHeight - imgHeight) / 2;
 
-        page.drawImage(image, { x: imgX, y: imgY, width: imgWidth, height: imgHeight, rotate: degrees(rotation) });
+        page.drawImage(image, {
+            x: imgX,
+            y: imgY,
+            width: imgWidth,
+            height: imgHeight,
+        });
     }
 
     return await pdfDoc.save();

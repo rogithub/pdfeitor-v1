@@ -161,8 +161,18 @@
                 const img = new Image();
                 img.onload = () => {
                     const imageIsLandscape = img.naturalWidth > img.naturalHeight;
-                    updateDesignArea(imageIsLandscape);
+                    updateDesignArea(); // Always portrait
                     mainPreview.style.backgroundImage = `url(${imageUrl})`;
+
+                    // If landscape, scale the preview to fit within the portrait container
+                    if (imageIsLandscape) {
+                        const containerWidth = designContainer.clientWidth;
+                        const containerHeight = designContainer.clientHeight;
+                        const scale = containerWidth / containerHeight;
+                        mainPreview.style.transform = `rotate(90deg) scale(${scale})`;
+                    } else {
+                        mainPreview.style.transform = 'rotate(0deg) scale(1)';
+                    }
                 };
                 img.src = imageUrl;
 
@@ -170,12 +180,13 @@
             } else if (imageFiles.length === 0) {
                 selectedPageIndex = -1;
                 mainPreview.style.backgroundImage = 'none';
-                updateDesignArea(false); // Reset to portrait
+                mainPreview.style.transform = 'rotate(0deg)';
+                updateDesignArea(); // Reset to portrait
                 renderThumbnails();
             }
         }
 
-        function updateDesignArea(imageIsLandscape) {
+        function updateDesignArea() {
             const pageSize = pageSizeSelect.value;
             const previewArea = document.getElementById('preview-area');
             
@@ -185,22 +196,12 @@
             let containerWidth, containerHeight;
             const pageRatio = PAPER_RATIOS[pageSize];
             
-            const orientation = imageIsLandscape ? 'landscape' : 'portrait';
-
-            if (orientation === 'portrait') {
-                containerHeight = availableHeight;
-                containerWidth = containerHeight * pageRatio;
-                if (containerWidth > availableWidth) {
-                    containerWidth = availableWidth;
-                    containerHeight = containerWidth / pageRatio;
-                }
-            } else { // landscape
+            // Always render a portrait page preview
+            containerHeight = availableHeight;
+            containerWidth = containerHeight * pageRatio;
+            if (containerWidth > availableWidth) {
                 containerWidth = availableWidth;
                 containerHeight = containerWidth / pageRatio;
-                if (containerHeight > availableHeight) {
-                    containerHeight = availableHeight;
-                    containerWidth = containerHeight / pageRatio;
-                }
             }
 
             designContainer.style.width = `${containerWidth}px`;
