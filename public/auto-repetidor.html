@@ -5,6 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pdfeitor V1: Auto-Repetidor</title>
     <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css">
+    <style>
+        /* Additional styles for cropper modal */
+        #crop-modal {
+            display: none;
+            position: fixed;
+            z-index: 1001; /* Higher than other elements */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+            justify-content: center;
+            align-items: center;
+        }
+        .crop-modal-content {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 800px;
+        }
+        #crop-image-container {
+            max-width: 100%;
+            max-height: 70vh;
+        }
+        #crop-image-container img {
+            max-width: 100%;
+        }
+    </style>
 </head>
 <body>
     <aside id="controls">
@@ -43,6 +74,7 @@
             <h3>2. Seleccionar Imagen</h3>
             <label for="image-input">Subir Imagen:</label>
             <input type="file" id="image-input" accept="image/*">
+            <button id="crop-image-btn" disabled>Recortar Imagen</button>
             <button id="rotate-image-btn">Girar 90°</button>
             <div style="margin-top: 10px;">
                 <input type="checkbox" id="unlock-ratio" name="unlock-ratio">
@@ -82,6 +114,21 @@
         </div>
     </main>
 
+    <!-- Modal para recortar -->
+    <div id="crop-modal">
+        <div class="crop-modal-content">
+            <h2>Recortar Imagen</h2>
+            <div id="crop-image-container">
+                <img id="image-to-crop" src="">
+            </div>
+            <div style="margin-top: 15px;">
+                <button id="confirm-crop-btn" class="btn-generate">Confirmar Recorte</button>
+                <button id="cancel-crop-btn" class="btn-cancel">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
     <script src="/js/constants.js"></script>
     <script src="/js/ui.js"></script>
     <script>
@@ -96,6 +143,7 @@
                 },
                 image: {
                     file: null,
+                    originalUrl: null,
                     widthMM: 50, // Default width
                     heightMM: 0, // Calculated
                     rotation: 0,
@@ -107,6 +155,7 @@
                     rows: 0
                 }
             };
+            let cropper = null;
 
             // --- DOM ELEMENTS ---
             const pageSizeSelect = document.getElementById('pageSize');
@@ -115,6 +164,7 @@
             const useHalfPageCheckbox = document.getElementById('useHalfPage');
             const imageInput = document.getElementById('image-input');
             const rotateBtn = document.getElementById('rotate-image-btn');
+            const cropBtn = document.getElementById('crop-image-btn');
             const imageWidthInput = document.getElementById('image-width');
             const imageHeightInput = document.getElementById('image-height');
             const unlockRatioCheckbox = document.getElementById('unlock-ratio');
@@ -123,6 +173,11 @@
             const designContainer = document.getElementById('design-container');
             const gridContainer = document.getElementById('grid-container');
             const mainContent = document.getElementById('main-content');
+            // Modal elements
+            const cropModal = document.getElementById('crop-modal');
+            const imageToCrop = document.getElementById('image-to-crop');
+            const confirmCropBtn = document.getElementById('confirm-crop-btn');
+            const cancelCropBtn = document.getElementById('cancel-crop-btn');
 
             let px_per_mm = 1;
 
@@ -133,6 +188,8 @@
                 if (!file) return;
 
                 state.image.file = file;
+                state.image.originalUrl = URL.createObjectURL(file);
+
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     const img = new Image();
@@ -142,6 +199,7 @@
                         imageWidthInput.value = state.image.widthMM.toFixed(2);
                         imageHeightInput.value = state.image.heightMM.toFixed(2);
                         generatePdfBtn.disabled = false;
+                        cropBtn.disabled = false;
                         updateAndRender();
                     };
                     img.src = e.target.result;
@@ -176,20 +234,56 @@
                 state.image.rotation = (state.image.rotation + 90) % 360;
 
                 if (unlockRatioCheckbox.checked) {
-                    // If ratio is unlocked, just swap width and height
                     const oldWidth = state.image.widthMM;
                     state.image.widthMM = state.image.heightMM;
                     state.image.heightMM = oldWidth;
                     imageWidthInput.value = state.image.widthMM.toFixed(2);
                     imageHeightInput.value = state.image.heightMM.toFixed(2);
                 } else {
-                    // If ratio is locked, swap aspect ratio and recalculate
                     state.image.aspectRatio = 1 / state.image.aspectRatio;
                     state.image.heightMM = state.image.widthMM / state.image.aspectRatio;
                     imageHeightInput.value = state.image.heightMM.toFixed(2);
                 }
                 
                 updateAndRender();
+            }
+
+            function cropImage() {
+                if (!state.image.originalUrl) return;
+                imageToCrop.src = state.image.originalUrl;
+                cropModal.style.display = 'flex';
+
+                if (cropper) {
+                    cropper.destroy();
+                }
+                cropper = new Cropper(imageToCrop, {
+                    viewMode: 1,
+                    background: false,
+                });
+            }
+
+            function confirmCrop() {
+                if (!cropper) return;
+                const canvas = cropper.getCroppedCanvas();
+                canvas.toBlob((blob) => {
+                    const newFile = new File([blob], state.image.file.name, { type: blob.type });
+                    state.image.file = newFile;
+                    state.image.originalUrl = URL.createObjectURL(newFile); // Update URL to cropped version
+                    
+                    // Recalculate aspect ratio and dimensions
+                    const img = new Image();
+                    img.onload = () => {
+                        state.image.aspectRatio = img.naturalWidth / img.naturalHeight;
+                        state.image.heightMM = state.image.widthMM / state.image.aspectRatio;
+                        imageHeightInput.value = state.image.heightMM.toFixed(2);
+                        updateAndRender();
+                    };
+                    img.src = state.image.originalUrl;
+
+                    cropper.destroy();
+                    cropper = null;
+                    cropModal.style.display = 'none';
+                }, state.image.file.type);
             }
 
             function updateAndRender() {
@@ -319,6 +413,13 @@
             spacingInput.addEventListener('input', updateAndRender);
             imageInput.addEventListener('change', handleImageUpload);
             rotateBtn.addEventListener('click', rotateImage);
+            cropBtn.addEventListener('click', cropImage);
+            confirmCropBtn.addEventListener('click', confirmCrop);
+            cancelCropBtn.addEventListener('click', () => {
+                if (cropper) cropper.destroy();
+                cropper = null;
+                cropModal.style.display = 'none';
+            });
             imageWidthInput.addEventListener('change', () => updateImageDimensions('width'));
             imageHeightInput.addEventListener('change', () => updateImageDimensions('height'));
             unlockRatioCheckbox.addEventListener('change', () => updateImageDimensions('width')); // Recalculate on lock/unlock

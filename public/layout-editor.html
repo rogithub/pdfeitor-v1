@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pdfeitor V1: Editor de Layouts</title>
     <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css">
+    <style>
+        #image-preview-container.cropper-bg {
+            background: none;
+        }
+        .cropper-container {
+            max-height: 60vh;
+        }
+    </style>
 </head>
 <body>
     <aside id="controls">
@@ -85,10 +94,16 @@
             <div id="image-preview-container">
                 <img id="image-preview" src="" alt="Previsualización">
             </div>
-            <div class="modal-actions">
+            <div class="modal-actions" id="standard-modal-actions">
+                <button id="crop-image-btn">Recortar</button>
                 <button id="rotate-image-btn">Girar 90°</button>
                 <button id="remove-image-btn" class="btn-remove">Quitar Imagen</button>
             </div>
+            <div class="modal-actions" id="crop-modal-actions" style="display: none;">
+                <button id="confirm-crop-btn" class="btn-generate">Confirmar</button>
+                <button id="cancel-crop-btn" class="btn-cancel">Cancelar Recorte</button>
+            </div>
+            <hr>
             <div class="modal-actions">
                 <button id="cancel-modal-btn" class="btn-cancel">Cancelar</button>
                 <button id="save-image-btn" class="btn-generate">Guardar</button>
@@ -96,6 +111,7 @@
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
     <script src="/js/constants.js"></script>
     <script src="/js/ui.js"></script>
     <script>
@@ -120,16 +136,24 @@
             const imageModal = document.getElementById('image-modal');
             const imageInput = document.getElementById('image-input');
             const imagePreview = document.getElementById('image-preview');
+            const imagePreviewContainer = document.getElementById('image-preview-container');
             const rotateBtn = document.getElementById('rotate-image-btn');
             const removeBtn = document.getElementById('remove-image-btn');
             const saveBtn = document.getElementById('save-image-btn');
             const cancelBtn = document.getElementById('cancel-modal-btn');
+            const cropBtn = document.getElementById('crop-image-btn');
+            const confirmCropBtn = document.getElementById('confirm-crop-btn');
+            const cancelCropBtn = document.getElementById('cancel-crop-btn');
+            const standardModalActions = document.getElementById('standard-modal-actions');
+            const cropModalActions = document.getElementById('crop-modal-actions');
 
             let gridState = [];
             let selectedCellIds = new Set();
             let activeCellId = null;
             let currentRotation = 0;
             let currentImageFile = null;
+            let originalImageUrl = null; // Store URL of the original uploaded image for cropping
+            let cropper = null;
             let px_per_mm = 1;
 
             // --- LÓGICA DE GENERACIÓN DE PDF ---
@@ -154,7 +178,7 @@
                         };
 
                         if (cell.image.file) {
-                            const imageName = `image_${imageCounter++}`;
+                            const imageName = `image_${imageCounter++}_${cell.image.file.name}`;
                             cellData.imageName = imageName;
                             cellData.rotation = cell.image.rotation;
                             const renamedFile = new File([cell.image.file], imageName, { type: cell.image.file.type });
@@ -362,13 +386,23 @@
                 const cellState = gridState[activeCellId];
                 currentRotation = cellState.image.rotation;
                 currentImageFile = cellState.image.file;
+                originalImageUrl = cellState.image.url; // Use existing URL for cropping
                 imagePreview.src = cellState.image.url || '';
                 imagePreview.style.transform = `rotate(${currentRotation}deg)`;
                 imageInput.value = '';
                 imageModal.style.display = 'flex';
+                cropBtn.disabled = !currentImageFile;
             }
 
             function closeModal() {
+                if (cropper) {
+                    cropper.destroy();
+                    cropper = null;
+                }
+                imagePreview.style.display = 'block';
+                imagePreviewContainer.classList.remove('cropper-bg');
+                standardModalActions.style.display = 'flex';
+                cropModalActions.style.display = 'none';
                 imageModal.style.display = 'none';
                 activeCellId = null;
             }
@@ -377,8 +411,9 @@
                 const file = e.target.files[0];
                 if (file) {
                     currentImageFile = file;
-                    const imageUrl = URL.createObjectURL(file);
-                    imagePreview.src = imageUrl;
+                    originalImageUrl = URL.createObjectURL(file);
+                    imagePreview.src = originalImageUrl;
+                    cropBtn.disabled = false;
 
                     const img = new Image();
                     img.onload = () => {
@@ -390,9 +425,8 @@
 
                         currentRotation = (imageIsLandscape !== cellIsLandscape) ? 90 : 0;
                         imagePreview.style.transform = `rotate(${currentRotation}deg)`;
-                        URL.revokeObjectURL(imageUrl);
                     };
-                    img.src = imageUrl;
+                    img.src = originalImageUrl;
                 }
             }
 
@@ -403,9 +437,51 @@
 
             function removeImage() {
                 currentImageFile = null;
+                originalImageUrl = null;
                 currentRotation = 0;
                 imagePreview.src = '';
                 imagePreview.style.transform = 'rotate(0deg)';
+                cropBtn.disabled = true;
+            }
+
+            function cropImage() {
+                if (!originalImageUrl) return;
+                imagePreview.style.display = 'none'; // Hide preview img
+                imagePreviewContainer.classList.add('cropper-bg');
+                
+                const img = document.createElement('img');
+                img.src = originalImageUrl;
+                imagePreviewContainer.appendChild(img);
+
+                cropper = new Cropper(img, { viewMode: 1, background: false });
+                standardModalActions.style.display = 'none';
+                cropModalActions.style.display = 'flex';
+            }
+
+            function confirmCrop() {
+                if (!cropper) return;
+                const canvas = cropper.getCroppedCanvas();
+                canvas.toBlob((blob) => {
+                    const newFile = new File([blob], currentImageFile.name, { type: blob.type });
+                    currentImageFile = newFile;
+                    originalImageUrl = URL.createObjectURL(newFile);
+                    imagePreview.src = originalImageUrl;
+                    
+                    cancelCrop(); // Resets UI
+                }, currentImageFile.type);
+            }
+
+            function cancelCrop() {
+                if (cropper) {
+                    cropper.destroy();
+                    cropper = null;
+                }
+                imagePreviewContainer.innerHTML = '';
+                imagePreviewContainer.appendChild(imagePreview);
+                imagePreview.style.display = 'block';
+                imagePreviewContainer.classList.remove('cropper-bg');
+                standardModalActions.style.display = 'flex';
+                cropModalActions.style.display = 'none';
             }
 
             function saveImage() {
@@ -449,6 +525,9 @@
             imageInput.addEventListener('change', handleImageUpload);
             rotateBtn.addEventListener('click', rotateImage);
             removeBtn.addEventListener('click', removeImage);
+            cropBtn.addEventListener('click', cropImage);
+            confirmCropBtn.addEventListener('click', confirmCrop);
+            cancelCropBtn.addEventListener('click', cancelCrop);
             saveBtn.addEventListener('click', saveImage);
             cancelBtn.addEventListener('click', closeModal);
 
