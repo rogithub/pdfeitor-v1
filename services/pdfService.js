@@ -7,6 +7,20 @@ const PAPER_DIMENSIONS_PT = {
     legal: { width: LEGAL_WIDTH_PT, height: LEGAL_HEIGHT_PT }
 };
 
+/**
+ * Converts a webp image buffer to a jpeg image buffer.
+ * If the input is not webp, it returns the original buffer.
+ * @param {Buffer} buffer The image buffer.
+ * @param {string} mimetype The mimetype of the image.
+ * @returns {Promise<Buffer>} The processed image buffer.
+ */
+async function convertWebpBufferToJpeg(buffer, mimetype) {
+    if (mimetype === 'image/webp') {
+        return await sharp(buffer).jpeg().toBuffer();
+    }
+    return buffer;
+}
+
 async function createAutoRepetidorPdf(file, config) {
     const { pageSettings, image: imageConfig, grid } = config;
     const pdfDoc = await PDFDocument.create();
@@ -17,7 +31,7 @@ async function createAutoRepetidorPdf(file, config) {
     const pageHeight = pageSettings.orientation === 'landscape' ? pageDims.width : pageDims.height;
     page.setSize(pageWidth, pageHeight);
 
-    let imageBuffer = file.buffer;
+    let imageBuffer = await convertWebpBufferToJpeg(file.buffer, file.mimetype);
     if (imageConfig.rotation > 0) {
         imageBuffer = await sharp(imageBuffer).rotate(imageConfig.rotation).toBuffer();
     }
@@ -50,7 +64,7 @@ async function createAutoRepetidorPdf(file, config) {
 async function createLayoutPdf(files, layoutConfig) {
     const { pageSettings, cells } = layoutConfig;
     const imagesMap = files.reduce((map, file) => {
-        map[file.originalname] = file.buffer;
+        map[file.originalname] = file;
         return map;
     }, {});
 
@@ -83,8 +97,10 @@ async function createLayoutPdf(files, layoutConfig) {
 
     for (const cell of cells) {
         if (!cell.imageName) continue;
-        const imageBuffer = imagesMap[cell.imageName];
-        if (!imageBuffer) continue;
+        const imageFile = imagesMap[cell.imageName];
+        if (!imageFile) continue;
+
+        const imageBuffer = await convertWebpBufferToJpeg(imageFile.buffer, imageFile.mimetype);
 
         const cellX = marginPt + cell.col * (cellWidth + spacingPt);
         const cellY = startY - (cell.row * (cellHeight + spacingPt));
@@ -124,7 +140,7 @@ async function createMultiPaginaPdf(files, pageSettings) {
     const pdfDoc = await PDFDocument.create();
 
     for (const file of files) {
-        let imageBuffer = file.buffer;
+        let imageBuffer = await convertWebpBufferToJpeg(file.buffer, file.mimetype);
         const imageMetadata = await sharp(imageBuffer).metadata();
         const imageIsLandscape = imageMetadata.width > imageMetadata.height;
 
@@ -176,7 +192,7 @@ async function createMultiPaginaPdf(files, pageSettings) {
 async function createPlantillaPdf(files, config) {
     const { pageSettings, pages } = config;
     const imagesMap = files.reduce((map, file) => {
-        map[file.originalname] = file.buffer;
+        map[file.originalname] = file;
         return map;
     }, {});
 
@@ -207,8 +223,10 @@ async function createPlantillaPdf(files, config) {
 
         for (const cell of pageData.cells) {
             if (!cell.image || !cell.image.name) continue;
-            const imageBuffer = imagesMap[cell.image.name];
-            if (!imageBuffer) continue;
+            const imageFile = imagesMap[cell.image.name];
+            if (!imageFile) continue;
+
+            const imageBuffer = await convertWebpBufferToJpeg(imageFile.buffer, imageFile.mimetype);
 
             const cellX = marginPt + cell.col * (cellWidth + spacingPt);
             const cellY = startY - (cell.row * (cellHeight + spacingPt));
