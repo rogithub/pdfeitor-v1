@@ -1,3 +1,3 @@
 # TODOs
-- Refactorizar, limpiar frontend
-- Convertir webp files a jpg
+- crop images in place
+
