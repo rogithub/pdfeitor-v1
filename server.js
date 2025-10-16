@@ -16,10 +16,6 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.get('/layout-editor', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'layout-editor.html'));
-});
-
 app.get('/multi-pagina', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'multi-pagina.html'));
 });

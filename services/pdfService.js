@@ -61,80 +61,6 @@ async function createAutoRepetidorPdf(file, config) {
     return await pdfDoc.save();
 }
 
-async function createLayoutPdf(files, layoutConfig) {
-    const { pageSettings, cells } = layoutConfig;
-    const imagesMap = files.reduce((map, file) => {
-        map[file.originalname] = file;
-        return map;
-    }, {});
-
-    const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage();
-
-    const pageSize = pageSettings.pageSize || 'letter';
-    const { width, height } = PAPER_DIMENSIONS_PT[pageSize];
-    page.setSize(
-        pageSettings.orientation === 'landscape' ? height : width,
-        pageSettings.orientation === 'landscape' ? width : height
-    );
-
-    const { width: pageWidth, height: pageHeight } = page.getSize();
-    const marginPt = mmToPt(pageSettings.margin);
-    const spacingPt = mmToPt(pageSettings.spacing);
-
-    let drawableWidth = pageWidth - (marginPt * 2);
-    let drawableHeight = pageHeight - (marginPt * 2);
-    let startY = pageHeight - marginPt;
-
-    if (pageSettings.useHalfPage) {
-        drawableHeight /= 2;
-    }
-
-    const totalSpacingX = (pageSettings.baseCols - 1) * spacingPt;
-    const totalSpacingY = (pageSettings.baseRows - 1) * spacingPt;
-    const cellWidth = (drawableWidth - totalSpacingX) / pageSettings.baseCols;
-    const cellHeight = (drawableHeight - totalSpacingY) / pageSettings.baseRows;
-
-    for (const cell of cells) {
-        if (!cell.imageName) continue;
-        const imageFile = imagesMap[cell.imageName];
-        if (!imageFile) continue;
-
-        const imageBuffer = await convertWebpBufferToJpeg(imageFile.buffer, imageFile.mimetype);
-
-        const cellX = marginPt + cell.col * (cellWidth + spacingPt);
-        const cellY = startY - (cell.row * (cellHeight + spacingPt));
-        const currentCellWidth = cell.colSpan * cellWidth + (cell.colSpan - 1) * spacingPt;
-        const currentCellHeight = cell.rowSpan * cellHeight + (cell.rowSpan - 1) * spacingPt;
-
-        let processedImageBuffer = imageBuffer;
-        if (cell.rotation > 0) {
-            processedImageBuffer = await sharp(imageBuffer).rotate(cell.rotation).toBuffer();
-        }
-
-        const isPng = (await sharp(processedImageBuffer).metadata()).format === 'png';
-        const image = isPng ? await pdfDoc.embedPng(processedImageBuffer) : await pdfDoc.embedJpg(processedImageBuffer);
-
-        const cellAspectRatio = currentCellWidth / currentCellHeight;
-        const imageAspectRatio = image.width / image.height;
-        let imgWidth, imgHeight;
-        if (imageAspectRatio > cellAspectRatio) {
-            imgWidth = currentCellWidth;
-            imgHeight = imgWidth / imageAspectRatio;
-        } else {
-            imgHeight = currentCellHeight;
-            imgWidth = imgHeight * imageAspectRatio;
-        }
-
-        const imgX = cellX + (currentCellWidth - imgWidth) / 2;
-        const imgY = (cellY - currentCellHeight) + (currentCellHeight - imgHeight) / 2;
-
-        page.drawImage(image, { x: imgX, y: imgY, width: imgWidth, height: imgHeight });
-    }
-
-    return await pdfDoc.save();
-}
-
 async function createMultiPaginaPdf(files, pageSettings) {
     const marginPt = mmToPt(pageSettings.margin || 10);
     const pdfDoc = await PDFDocument.create();
@@ -264,7 +190,6 @@ async function createPlantillaPdf(files, config) {
 
 module.exports = {
     createAutoRepetidorPdf,
-    createLayoutPdf,
     createMultiPaginaPdf,
     createPlantillaPdf,
 };
