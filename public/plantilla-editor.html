@@ -337,7 +337,9 @@
             // --- UI & CONTROLS UPDATE ---
 
             function updateControlsState() {
-                generatePdfBtn.disabled = state.imageFiles.length === 0;
+                const hasAnyImage = state.pages.some(p => p.cells.some(c => c.image && c.image.file));
+                generatePdfBtn.disabled = !hasAnyImage;
+
                 cellActionsGroup.style.display = state.pages.length > 0 ? 'block' : 'none';
                 
                 const selectedCount = state.selectedCellIds.size;
@@ -517,6 +519,20 @@
 
             function saveImage() {
                 const cell = state.pages[state.activePageIndex].cells.find(c => c.id === state.activeModalCellId);
+
+                // Si la celda ya tenía una imagen, la eliminamos de la lista global de archivos
+                if (cell.image.file) {
+                    const index = state.imageFiles.indexOf(cell.image.file);
+                    if (index > -1) {
+                        state.imageFiles.splice(index, 1);
+                    }
+                }
+
+                // Si se seleccionó un nuevo archivo, lo agregamos a la lista global
+                if (state.currentModalFile) {
+                    state.imageFiles.push(state.currentModalFile);
+                }
+                
                 cell.image.file = state.currentModalFile;
                 cell.image.rotation = state.currentModalRotation;
                 cell.image.url = state.currentModalFile ? URL.createObjectURL(state.currentModalFile) : null;
