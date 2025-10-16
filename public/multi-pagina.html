@@ -38,9 +38,9 @@
         <div class="control-group">
             <h3>2. Cargar Imágenes</h3>
             <div id="image-drop-zone">
-                <p>Arrastra imágenes aquí o haz clic</p>
+                <p>Arrastra imágenes o un archivo .ZIP aquí</p>
             </div>
-            <input type="file" id="image-input" accept="image/*" multiple style="display: none;">
+            <input type="file" id="image-input" accept="image/*,.zip" multiple style="display: none;">
             <button id="crop-image-btn" disabled>Recortar Imagen</button>
             <button id="clear-images-btn" class="btn-clear">Limpiar Imágenes</button>
         </div>
@@ -73,8 +73,10 @@
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
     <script src="/js/constants.js"></script>
+    <script src="/js/fileHandler.js"></script>
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         // --- ELEMENTOS DEL DOM ---
@@ -146,9 +148,10 @@
         }
 
         // --- LÓGICA DE UI Y MANEJO DE IMÁGENES ---
-        function handleFiles(files) {
-            const newFiles = Array.from(files)
-                .filter(file => file.type.startsWith('image/'))
+        async function handleFiles(files) {
+            const processedFiles = await processFiles(files);
+
+            const newFiles = processedFiles
                 .map(file => ({ file, url: URL.createObjectURL(file) }));
 
             if (newFiles.length > 0) {

@@ -41,7 +41,7 @@
 
         <div class="control-group">
             <h3>3. Cargar Imágenes</h3>
-            <input type="file" id="image-input-batch" accept="image/*" multiple>
+            <input type="file" id="image-input-batch" accept="image/*,.zip" multiple>
             <button id="clear-images-btn" class="btn-clear">Limpiar Todo</button>
         </div>
         
@@ -93,9 +93,11 @@
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
     <script src="/js/constants.js"></script>
     <script src="/js/ui.js"></script>
+    <script src="/js/fileHandler.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- STATE MANAGEMENT ---
@@ -176,12 +178,13 @@
                 selectPage(0);
             }
 
-            function handleBatchImageUpload(e) {
-                state.imageFiles = Array.from(e.target.files);
-                distributeImagesToPages();
+            async function handleBatchImageUpload(e) {
+                const files = e.target.files;
+                state.imageFiles = await processFiles(files);
+                await distributeImagesToPages();
             }
 
-            function distributeImagesToPages() {
+            async function distributeImagesToPages() {
                 state.pages = [];
                 if (state.imageFiles.length === 0) {
                     state.pages.push(createPageFromTemplate());
@@ -212,28 +215,32 @@
                             const rotation = (imageIsLandscape !== cellIsLandscape) ? 90 : 0;
                             resolve({ file, url: imageUrl, rotation, name: file.name });
                         };
+                        img.onerror = () => { // Handle cases where the image can't be loaded
+                            console.error("Could not load image:", file.name);
+                            resolve(null);
+                        };
                         img.src = imageUrl;
                     });
                 });
 
-                Promise.all(imageProcessingPromises).then(processedImages => {
-                    let imageIndex = 0;
-                    while (imageIndex < processedImages.length) {
-                        const newPage = createPageFromTemplate();
-                        newPage.cells.forEach(cell => {
-                            if (imageIndex < processedImages.length) {
-                                cell.image = processedImages[imageIndex];
-                                imageIndex++;
-                            }
-                        });
-                        state.pages.push(newPage);
-                    }
+                const processedImages = (await Promise.all(imageProcessingPromises)).filter(Boolean); // Filter out nulls from errors
 
-                    if (state.pages.length === 0) {
-                        state.pages.push(createPageFromTemplate());
-                    }
-                    selectPage(0);
-                });
+                let imageIndex = 0;
+                while (imageIndex < processedImages.length) {
+                    const newPage = createPageFromTemplate();
+                    newPage.cells.forEach(cell => {
+                        if (imageIndex < processedImages.length) {
+                            cell.image = processedImages[imageIndex];
+                            imageIndex++;
+                        }
+                    });
+                    state.pages.push(newPage);
+                }
+
+                if (state.pages.length === 0) {
+                    state.pages.push(createPageFromTemplate());
+                }
+                selectPage(0);
             }
             
             function clearAll() {
@@ -524,28 +531,39 @@
                 generatePdfBtn.textContent = 'Generando...';
 
                 const formData = new FormData();
-                const pageSettingsWithSpacing = {
-                    ...state.pageSettings,
-                    spacing: state.template.spacing
-                };
                 const config = {
-                    pageSettings: pageSettingsWithSpacing,
+                    pageSettings: {
+                        ...state.pageSettings,
+                        spacing: state.template.spacing
+                    },
                     pages: []
                 };
 
-                state.pages.forEach((page, pageIndex) => {
-                    const pageData = { baseCols: page.baseCols, baseRows: page.baseRows, cells: [] };
-                    page.cells.forEach(cell => {
-                        const cellData = { ...cell, image: { rotation: cell.image.rotation, name: null } };
-                        if (cell.image.file) {
-                            const uniqueName = `p${pageIndex}_c${cell.id}_${cell.image.file.name}`;
-                            cellData.image.name = uniqueName;
-                            const renamedFile = new File([cell.image.file], uniqueName, { type: cell.image.file.type });
-                            formData.append('images', renamedFile);
-                        }
-                        pageData.cells.push(cellData);
-                    });
-                    config.pages.push(pageData);
+                config.pages = state.pages.map((page, pageIndex) => {
+                    const pageData = {
+                        baseCols: page.baseCols,
+                        baseRows: page.baseRows,
+                        cells: page.cells.map(cell => {
+                            const cellData = {
+                                id: cell.id, col: cell.col, row: cell.row,
+                                colSpan: cell.colSpan, rowSpan: cell.rowSpan,
+                                visible: cell.visible, merged: cell.merged,
+                                mergedInto: cell.mergedInto,
+                                image: { rotation: 0, name: null }
+                            };
+
+                            if (cell.image && cell.image.file) {
+                                const uniqueName = `p${pageIndex}_c${cell.id}_${cell.image.file.name}`;
+                                cellData.image.name = uniqueName;
+                                cellData.image.rotation = cell.image.rotation;
+
+                                const renamedFile = new File([cell.image.file], uniqueName, { type: cell.image.file.type });
+                                formData.append('images', renamedFile);
+                            }
+                            return cellData;
+                        })
+                    };
+                    return pageData;
                 });
 
                 formData.append('config', JSON.stringify(config));
