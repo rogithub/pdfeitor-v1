@@ -117,15 +117,13 @@ async function createMultiPaginaPdf(files, pageSettings) {
 
 async function createPlantillaPdf(files, config) {
     const { pageSettings, pages } = config;
-    const imagesMap = files.reduce((map, file) => {
-        map[file.originalname] = file;
-        return map;
-    }, {});
+    let fileIndex = 0; // Usar un índice para rastrear los archivos en orden
 
     const pdfDoc = await PDFDocument.create();
 
     for (const pageData of pages) {
-        const hasImagesOnPage = pageData.cells.some(cell => cell.image && cell.image.name && imagesMap[cell.image.name]);
+        // Solo procesar páginas que se supone que tienen imágenes
+        const hasImagesOnPage = pageData.cells.some(cell => cell.image && cell.image.name);
         if (!hasImagesOnPage) continue;
 
         const page = pdfDoc.addPage();
@@ -148,40 +146,42 @@ async function createPlantillaPdf(files, config) {
         const cellHeight = (drawableHeight - totalSpacingY) / pageData.baseRows;
 
         for (const cell of pageData.cells) {
-            if (!cell.image || !cell.image.name) continue;
-            const imageFile = imagesMap[cell.image.name];
-            if (!imageFile) continue;
+            // Si la celda debe tener una imagen, toma el siguiente archivo de la lista
+            if (cell.image && cell.image.name && fileIndex < files.length) {
+                const imageFile = files[fileIndex];
+                fileIndex++; // Incrementar para la siguiente celda con imagen
 
-            const imageBuffer = await convertWebpBufferToJpeg(imageFile.buffer, imageFile.mimetype);
+                const imageBuffer = await convertWebpBufferToJpeg(imageFile.buffer, imageFile.mimetype);
 
-            const cellX = marginPt + cell.col * (cellWidth + spacingPt);
-            const cellY = startY - (cell.row * (cellHeight + spacingPt));
-            const currentCellWidth = cell.colSpan * cellWidth + (cell.colSpan - 1) * spacingPt;
-            const currentCellHeight = cell.rowSpan * cellHeight + (cell.rowSpan - 1) * spacingPt;
+                const cellX = marginPt + cell.col * (cellWidth + spacingPt);
+                const cellY = startY - (cell.row * (cellHeight + spacingPt));
+                const currentCellWidth = cell.colSpan * cellWidth + (cell.colSpan - 1) * spacingPt;
+                const currentCellHeight = cell.rowSpan * cellHeight + (cell.rowSpan - 1) * spacingPt;
 
-            let processedImageBuffer = imageBuffer;
-            if (cell.image && cell.image.rotation > 0) {
-                processedImageBuffer = await sharp(imageBuffer).rotate(cell.image.rotation).toBuffer();
+                let processedImageBuffer = imageBuffer;
+                if (cell.image && cell.image.rotation > 0) {
+                    processedImageBuffer = await sharp(imageBuffer).rotate(cell.image.rotation).toBuffer();
+                }
+
+                const isPng = (await sharp(processedImageBuffer).metadata()).format === 'png';
+                const image = isPng ? await pdfDoc.embedPng(processedImageBuffer) : await pdfDoc.embedJpg(processedImageBuffer);
+
+                const cellAspectRatio = currentCellWidth / currentCellHeight;
+                const imageAspectRatio = image.width / image.height;
+                let imgWidth, imgHeight;
+                if (imageAspectRatio > cellAspectRatio) {
+                    imgWidth = currentCellWidth;
+                    imgHeight = imgWidth / imageAspectRatio;
+                } else {
+                    imgHeight = currentCellHeight;
+                    imgWidth = imgHeight * imageAspectRatio;
+                }
+
+                const imgX = cellX + (currentCellWidth - imgWidth) / 2;
+                const imgY = (cellY - currentCellHeight) + (currentCellHeight - imgHeight) / 2;
+
+                page.drawImage(image, { x: imgX, y: imgY, width: imgWidth, height: imgHeight });
             }
-
-            const isPng = (await sharp(processedImageBuffer).metadata()).format === 'png';
-            const image = isPng ? await pdfDoc.embedPng(processedImageBuffer) : await pdfDoc.embedJpg(processedImageBuffer);
-
-            const cellAspectRatio = currentCellWidth / currentCellHeight;
-            const imageAspectRatio = image.width / image.height;
-            let imgWidth, imgHeight;
-            if (imageAspectRatio > cellAspectRatio) {
-                imgWidth = currentCellWidth;
-                imgHeight = imgWidth / imageAspectRatio;
-            } else {
-                imgHeight = currentCellHeight;
-                imgWidth = imgHeight * imageAspectRatio;
-            }
-
-            const imgX = cellX + (currentCellWidth - imgWidth) / 2;
-            const imgY = (cellY - currentCellHeight) + (currentCellHeight - imgHeight) / 2;
-
-            page.drawImage(image, { x: imgX, y: imgY, width: imgWidth, height: imgHeight });
         }
     }
 

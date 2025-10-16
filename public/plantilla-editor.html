@@ -557,8 +557,8 @@
                                 cellData.image.name = uniqueName;
                                 cellData.image.rotation = cell.image.rotation;
 
-                                const renamedFile = new File([cell.image.file], uniqueName, { type: cell.image.file.type });
-                                formData.append('images', renamedFile);
+                                // Usar el método de 3 argumentos para asegurar que el nombre del archivo se envíe correctamente
+                                formData.append('images', cell.image.file, uniqueName);
                             }
                             return cellData;
                         })
